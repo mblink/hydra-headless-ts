@@ -1,0 +1,99 @@
+# Woodpecker CI (arm64) — faithful port of .drone.yml onto the arm64 agents.
+#
+# Differences from .drone.yml are portability fixes only, no build-behavior changes:
+#   * the drone `pull-images` step (jeffdyke/ecr-auth-v2) is gone — the Woodpecker agent
+#     authenticates to ECR itself, so steps just pull their own image (pull: true).
+#   * images are the :latest-arm64 tags built by the oddjob arm64 pipeline.
+#   * host volumes use Woodpecker's inline host:container form, and the drone cache dir
+#     /var/lib/drone/cache becomes /var/lib/woodpecker/cache.
+#   * commands reference shell vars in the bare $VAR form. The brace form is expanded by
+#     envsubst over the raw file BEFORE the YAML is parsed, and anything not in the
+#     pipeline-metadata env either blanks out or fails the whole config to compile.
+#   * Woodpecker has no `changed` build status, so notify fires on failure only.
+#
+# NOTE: this pipeline needs the repo marked TRUSTED in Woodpecker for the docker.sock and
+# host-cache mounts, and an arm64 agent registered with label platform=linux/arm64.
+
+when:
+  # Workflow-wide filter, inherited by every step — covers the steps that carry no when of
+  # their own and gives the status-only when on notify its event filter.
+  - event: [push, pull_request]
+    branch: RC
+
+labels:
+  platform: linux/arm64
+
+concurrency:
+  limit: 3
+
+workspace:
+  base: /src
+  path: hydra-headless-ts
+
+steps:
+  - name: init-build
+    image: ruby:3-alpine
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/woodpecker/cache:/cache
+    environment:
+      CI: "true"
+    commands:
+      # Woodpecker exposes CI_* built-ins; export the DRONE_* names this step echoes.
+      - export DRONE_AGENT_NAME="$CI_MACHINE" DRONE_BUILD_NUMBER="$CI_PIPELINE_NUMBER"
+      - |
+        echo "Agent: $DRONE_AGENT_NAME"
+        echo "Build Number: $DRONE_BUILD_NUMBER"
+        echo $DRONE_BUILD_NUMBER > /cache/build.txt
+
+  - name: base-install
+    image: &build-image 668874212870.dkr.ecr.us-east-1.amazonaws.com/drone-hydra-headless-ts:latest-arm64
+    pull: true
+    commands:
+      - pwd && ls -la
+      - bash +x build/rebuild.sh --ci
+    depends_on:
+      - init-build
+
+  - name: run-tests
+    image: *build-image
+    pull: true
+    commands:
+      - npm run test:ci
+    depends_on:
+      - base-install
+      - init-build
+
+  - name: build-and-push
+    image: *build-image
+    pull: true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    commands:
+      - $PWD/build/rebuild.sh --ci
+    depends_on:
+      - run-tests
+      - base-install
+      - init-build
+
+  - name: notify
+    image: drillster/drone-email:latest
+    pull: true
+    environment:
+      PLUGIN_HOST: prodsalt.bondlink.vpc
+      PLUGIN_PORT: "25"
+      PLUGIN_FROM: bldeploy@bondlink.com
+    commands:
+      # There is no current-pipeline-status env var, and the plugin reads the DRONE_* names:
+      # this step only runs on failure, so state that outright.
+      - export DRONE_BUILD_STATUS=failure
+      - |
+        if [ -z "$CI_COMMIT_AUTHOR_EMAIL" ]; then
+          apk add --no-cache --update git
+          export DRONE_COMMIT_AUTHOR_EMAIL="$(git show -s --format='%aE' HEAD)"
+        else
+          export DRONE_COMMIT_AUTHOR_EMAIL="$CI_COMMIT_AUTHOR_EMAIL"
+        fi
+      - /bin/drone-email
+    when:
+      - status: [failure]
