@@ -1,22 +1,27 @@
-# Woodpecker CI (arm64) — faithful port of .drone.yml onto the arm64 agents.
+# Woodpecker CI (arm64) — runs ALONGSIDE Drone (.drone.yml, amd64) during the
+# migration. Same steps, pinned to arm64 agents via `labels` and pulling the
+# arch-suffixed CI image (drone-hydra-headless-ts:latest-arm64).
 #
-# Differences from .drone.yml are portability fixes only, no build-behavior changes:
-#   * the drone `pull-images` step (jeffdyke/ecr-auth-v2) is gone — the Woodpecker agent
-#     authenticates to ECR itself, so steps just pull their own image (pull: true).
-#   * images are the :latest-arm64 tags built by the oddjob arm64 pipeline.
-#   * host volumes use Woodpecker's inline host:container form, and the drone cache dir
-#     /var/lib/drone/cache becomes /var/lib/woodpecker/cache.
-#   * commands reference shell vars in the bare $VAR form. The brace form is expanded by
-#     envsubst over the raw file BEFORE the YAML is parsed, and anything not in the
-#     pipeline-metadata env either blanks out or fails the whole config to compile.
-#   * Woodpecker has no `changed` build status, so notify fires on failure only.
+# There is no ECR-auth sidecar step: the agent host holds the registry
+# credentials, so the build steps just pull their own image.
 #
-# NOTE: this pipeline needs the repo marked TRUSTED in Woodpecker for the docker.sock and
-# host-cache mounts, and an arm64 agent registered with label platform=linux/arm64.
+# Shell variables in `commands` use the bare $VAR form on purpose. Woodpecker
+# runs envsubst over the raw file text BEFORE the YAML is parsed, so the
+# brace form of a free-text value (a commit message containing a colon and a
+# space) is inlined as a second mapping colon and fails the whole config to
+# compile — zero steps run. Bare $VAR is left alone at parse time and expanded
+# by the shell inside the container instead. Never write the brace form here,
+# comments included.
+#
+# HUMAN PREREQUISITES:
+#   1. Repo marked TRUSTED in Woodpecker (required for the host-path volumes).
+#   2. An arm64 agent registered with label  platform=linux/arm64.
+#   3. drone-hydra-headless-ts:latest-arm64 present in ECR.
 
 when:
-  # Workflow-wide filter, inherited by every step — covers the steps that carry no when of
-  # their own and gives the status-only when on notify its event filter.
+  # Workflow-wide event + branch filter, inherited by every step. Setting it once
+  # here means the status-only `when` on notify doesn't need its own event filter
+  # (Woodpecker flags a `when` with no event filter as a bad habit).
   - event: [push, pull_request]
     branch: RC
 
@@ -26,63 +31,60 @@ labels:
 concurrency:
   limit: 3
 
+# build/rebuild.sh hardcodes /src/hydra-headless-ts/docker-compose.yml, so this
+# path is load-bearing.
 workspace:
   base: /src
   path: hydra-headless-ts
+
+variables:
+  - &build-image 668874212870.dkr.ecr.us-east-1.amazonaws.com/drone-hydra-headless-ts:latest-arm64
+  # Host-path volumes use Woodpecker's inline host:container form.
+  - &docker-volume /var/run/docker.sock:/var/run/docker.sock
+  - &cache-volume /var/lib/woodpecker/cache:/cache
 
 steps:
   - name: init-build
     image: ruby:3-alpine
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /var/lib/woodpecker/cache:/cache
+      - *cache-volume
     environment:
       CI: "true"
     commands:
-      # Woodpecker exposes CI_* built-ins; export the DRONE_* names this step echoes.
-      - export DRONE_AGENT_NAME="$CI_MACHINE" DRONE_BUILD_NUMBER="$CI_PIPELINE_NUMBER"
       - |
-        echo "Agent: $DRONE_AGENT_NAME"
-        echo "Build Number: $DRONE_BUILD_NUMBER"
-        echo $DRONE_BUILD_NUMBER > /cache/build.txt
+        echo "Woodpecker agent: $CI_MACHINE"
+        echo "Build Number: $CI_PIPELINE_NUMBER"
+        echo $CI_PIPELINE_NUMBER > /cache/build.txt
 
   - name: base-install
-    image: &build-image 668874212870.dkr.ecr.us-east-1.amazonaws.com/drone-hydra-headless-ts:latest-arm64
+    image: *build-image
+    # Always re-pull: :latest-arm64 is a moving tag, and the agent would
+    # otherwise keep running a stale locally-cached copy of it.
     pull: true
     commands:
       - pwd && ls -la
       - bash +x build/rebuild.sh --ci
-    depends_on:
-      - init-build
 
   - name: run-tests
     image: *build-image
     pull: true
     commands:
       - npm run test:ci
-    depends_on:
-      - base-install
-      - init-build
 
   - name: build-and-push
     image: *build-image
     pull: true
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - *docker-volume
     commands:
       - $PWD/build/rebuild.sh --ci
-    depends_on:
-      - run-tests
-      - base-install
-      - init-build
 
+  # drillster/drone-email is published as a single linux/amd64 manifest -- not a
+  # manifest list -- so it cannot be pulled on an arm64 agent at all. It was only
+  # ever an SMTP sender to the internal relay, so msmtp does the same job on any
+  # arch, with no credential (the relay is unauthenticated on the LAN).
   - name: notify
-    # drillster/drone-email is published as a single linux/amd64 manifest -- not a
-    # manifest list -- so it cannot be pulled on an arm64 agent at all. It was only
-    # ever an SMTP sender to the internal relay, so msmtp does the same job on any
-    # arch, with no credential (the relay is unauthenticated on the LAN).
     image: alpine:3
-    pull: true
     environment:
       SMTP_HOST: prodsalt.bondlink.vpc
       SMTP_PORT: "25"
