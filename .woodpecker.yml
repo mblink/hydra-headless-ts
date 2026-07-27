@@ -77,23 +77,38 @@ steps:
       - init-build
 
   - name: notify
-    image: drillster/drone-email:latest
+    # drillster/drone-email is published as a single linux/amd64 manifest -- not a
+    # manifest list -- so it cannot be pulled on an arm64 agent at all. It was only
+    # ever an SMTP sender to the internal relay, so msmtp does the same job on any
+    # arch, with no credential (the relay is unauthenticated on the LAN).
+    image: alpine:3
     pull: true
     environment:
-      PLUGIN_HOST: prodsalt.bondlink.vpc
-      PLUGIN_PORT: "25"
-      PLUGIN_FROM: bldeploy@bondlink.com
+      SMTP_HOST: prodsalt.bondlink.vpc
+      SMTP_PORT: "25"
+      MAIL_FROM: bldeploy@bondlink.com
     commands:
-      # There is no current-pipeline-status env var, and the plugin reads the DRONE_* names:
-      # this step only runs on failure, so state that outright.
-      - export DRONE_BUILD_STATUS=failure
+      - apk add --no-cache msmtp git
       - |
-        if [ -z "$CI_COMMIT_AUTHOR_EMAIL" ]; then
-          apk add --no-cache --update git
-          export DRONE_COMMIT_AUTHOR_EMAIL="$(git show -s --format='%aE' HEAD)"
-        else
-          export DRONE_COMMIT_AUTHOR_EMAIL="$CI_COMMIT_AUTHOR_EMAIL"
-        fi
-      - /bin/drone-email
+        to="$CI_COMMIT_AUTHOR_EMAIL"
+        [ -n "$to" ] || to="$(git show -s --format='%aE' HEAD)"
+        [ -n "$to" ] || to="$MAIL_FROM"
+        # Woodpecker exposes no current-pipeline status; this step only runs on
+        # failure, so the subject says so outright.
+        {
+          printf 'From: %s\n' "$MAIL_FROM"
+          printf 'To: %s\n' "$to"
+          printf 'Subject: [woodpecker] FAILED %s build #%s (%s)\n' \
+            "$CI_REPO" "$CI_PIPELINE_NUMBER" "$CI_COMMIT_BRANCH"
+          printf '\n'
+          printf 'Repository: %s\n' "$CI_REPO"
+          printf 'Branch:     %s\n' "$CI_COMMIT_BRANCH"
+          printf 'Commit:     %s\n' "$CI_COMMIT_SHA"
+          printf 'Author:     %s\n' "$CI_COMMIT_AUTHOR"
+          printf 'Event:      %s\n' "$CI_PIPELINE_EVENT"
+          printf 'Build:      %s\n' "$CI_PIPELINE_URL"
+          printf '\n%s\n' "$CI_COMMIT_MESSAGE"
+        } | msmtp --host="$SMTP_HOST" --port="$SMTP_PORT" --from="$MAIL_FROM" \
+              --auth=off --tls=off -- "$to"
     when:
       - status: [failure]
