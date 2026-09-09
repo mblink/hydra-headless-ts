@@ -403,7 +403,7 @@ export const appConfigEffect = Effect.gen(function* () {
   )
 
   const cimd = yield* cimdConfig
-
+  console.warn('[config:cimd] CIMD Settings:', cimd)
   return {
     environment: env,
     domain,

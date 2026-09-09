@@ -81,4 +81,5 @@ syncLogger.info('Configuration loaded', {
   redisHost: appConfig.redisHost,
   redisPort: appConfig.redisPort,
   hasGoogleCredentials: !!(appConfig.googleClientId && appConfig.googleClientSecret),
+  cimd: appConfig.cimd,
 })
