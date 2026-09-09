@@ -32,7 +32,18 @@ if [ -x /etc/init.d/hydra-mcp ]; then
   DEPLOYED=1
   BASE_COMPOSE="/src/hydra-headless-ts/docker-compose.yml"
   mcp_fragments=(/etc/hydra-headless-ts/docker-compose.mariadb-mcp.*.yml)
-  if [ ! -e "${mcp_fragments[1]}" ]; then
+  # This file is sourced, not executed, so it runs under whatever shell the
+  # caller happens to be -- bash arrays are 0-indexed but zsh's are 1-indexed
+  # by default, so a literal `${mcp_fragments[0]}` or `[1]}` is only correct
+  # under one of the two. `${mcp_fragments[@]}` and `${#mcp_fragments[@]}`
+  # behave identically in both, so grab the first element via a loop instead
+  # of a numeric index.
+  MCP_COMPOSE=""
+  for f in "${mcp_fragments[@]}"; do
+    MCP_COMPOSE="$f"
+    break
+  done
+  if [ -z "$MCP_COMPOSE" ] || [ ! -e "$MCP_COMPOSE" ]; then
     echo "error: /etc/init.d/hydra-mcp exists but no /etc/hydra-headless-ts/docker-compose.mariadb-mcp.*.yml fragment was found" >&2
     exit 1
   fi
@@ -40,7 +51,6 @@ if [ -x /etc/init.d/hydra-mcp ]; then
     echo "error: expected exactly one mariadb-mcp compose fragment in /etc/hydra-headless-ts, found: ${mcp_fragments[*]}" >&2
     exit 1
   fi
-  MCP_COMPOSE="${mcp_fragments[1]}"
   COMPOSE_PROJECT="hydra-mcp"
   # docker-compose.mariadb-mcp.<env>.yml -> <env> (e.g. "prod", "staging"), the
   # same <env> salt/hydra-headless-ts's init.sls used to render this fragment
