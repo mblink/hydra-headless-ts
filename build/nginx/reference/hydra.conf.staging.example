@@ -98,6 +98,17 @@ server {
 
   # Composed by the app (not proxied straight to Hydra) so it can advertise
   # CIMD support alongside Hydra's native fields — see routes/discovery-fp.ts.
+  #
+  # NOTE: this location's proxy_pass was changed BY HAND ahead of the matching
+  # salt template change (salt/hydra-headless-ts/etc/nginx/conf.d/hydra.conf,
+  # salt repo) -- like every other file in this repo, this one is just a
+  # captured baseline (see the file header) and is NOT mounted anywhere, so
+  # editing it alone does nothing on a real host. Until the salt side ships
+  # and is applied, the live staging/prod nginx still blind-proxies this path
+  # straight to Hydra's own /.well-known/openid-configuration, and
+  # CIMD_ENABLED being true in the app's own config will NOT be visible in
+  # this document there. Re-capture once that change ships, and this note can
+  # go too.
   location = /.well-known/oauth-authorization-server {
    include /etc/nginx/cors_headers;
    include /etc/nginx/options_request;

@@ -6,20 +6,22 @@ volumes:
 # Shared shape for every mariadb-mcp instance (the default below plus one per
 # named source in a service like mariadb-mcp-<name>). One image, N containers --
 # the image takes no per-instance build arg (connection config is 100% runtime
-# env), so this anchor exists only to avoid repeating image/build/volumes/
-# networks/restart per instance. Each instance service only needs to set
-# container_name, env_file and ports.
+# env), so this anchor exists only to avoid repeating image/volumes/networks/
+# restart per instance. Each instance service only needs to set container_name,
+# env_file and ports.
+#
+# Pull-only, deliberately no `build:` here: oddjob/drone/Dockerfile.mariadb-mcp
+# is the single source for this image now, built and pushed to this exact tag
+# by oddjob/drone/build.sh. A local rebuild goes through
+# build/rebuild-mariadb-mcp.sh, which builds from that same Dockerfile (fetched
+# from oddjob at build time) and tags the result locally to match `image:`
+# below -- so `docker compose up` picks it up without needing to build here.
 x-mariadb-mcp: &mariadb-mcp-base
   # :latest is oddjob/drone/build.sh's amd64 tag (no arch suffix, by that
   # script's own convention) and has not been pushed since the amd64 fleet
   # migration completed -- :latest-arm64 is the tag its arm64-only pipeline
   # actually keeps current now that the build above is arm64-only too.
   image: 668874212870.dkr.ecr.us-east-1.amazonaws.com/bondlink-mariadb-mcp:latest-arm64
-  build:
-    context: .
-    dockerfile: build/Dockerfile.mariadb-mcp
-    platforms:
-      - linux/arm64
   volumes:
     - /var/log/bondlink:/var/log/bondlink
     - /etc/hydra-headless-ts:/etc/hydra-headless-ts:ro
@@ -80,6 +82,14 @@ services:
       start_period: 10s
   redis:
     image: redis
+    # Every key this app writes carries a TTL (see src/fp/services/redis.ts),
+    # so this is a bounded token/session cache, not a data store -- but with
+    # no maxmemory set it will still grow to fill whatever RAM the host has
+    # free before those TTLs expire. ${REDIS_MAXMEMORY:-1gb} rather than a bare
+    # literal so the cap can be raised per-environment without editing this
+    # file again; volatile-lru (not allkeys-lru) since eviction should only
+    # ever hit already-expiring keys, never a key that isn't volatile.
+    command: redis-server --maxmemory ${REDIS_MAXMEMORY:-1gb} --maxmemory-policy volatile-lru
     ports:
       - 6379:6379
     networks:
@@ -145,9 +155,9 @@ services:
   # than cycling Restarting forever in `docker compose ps`.
   #
   # Every mariadb-mcp container listens on 9001 INSIDE the container --
-  # build/Dockerfile.mariadb-mcp's ENTRYPOINT hardcodes --port 9001, it isn't
-  # configurable per-instance. Only the published HOST port varies per
-  # instance (see whichever docker-compose.mariadb-mcp.*.yml is in play).
+  # oddjob/drone/Dockerfile.mariadb-mcp's ENTRYPOINT hardcodes --port 9001,
+  # it isn't configurable per-instance. Only the published HOST port varies
+  # per instance (see whichever docker-compose.mariadb-mcp.*.yml is in play).
   mariadb-mcp-base:
     <<: *mariadb-mcp-base
     restart: "no"
