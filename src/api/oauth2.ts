@@ -423,7 +423,7 @@ export const makeOAuth2ApiService = (config: OAuth2ApiConfig): OAuth2ApiService 
     createClient: (client) =>
       fetchJSON<OAuth2Client>('POST', '/admin/clients', { body: client }),
 
-    getClient: (id) => fetchJSON<OAuth2Client>('GET', `/admin/clients/${id}`),
+    getClient: (id) => fetchJSON<OAuth2Client>('GET', `/admin/clients/${encodeURIComponent(id)}`),
 
     listClients: (params) =>
       fetchJSON<OAuth2Client[]>('GET', '/admin/clients', {
@@ -438,15 +438,15 @@ export const makeOAuth2ApiService = (config: OAuth2ApiConfig): OAuth2ApiService 
       }),
 
     updateClient: (id, client) =>
-      fetchJSON<OAuth2Client>('PUT', `/admin/clients/${id}`, { body: client }),
+      fetchJSON<OAuth2Client>('PUT', `/admin/clients/${encodeURIComponent(id)}`, { body: client }),
 
     patchClient: (id, patches) =>
-      fetchJSON<OAuth2Client>('PATCH', `/admin/clients/${id}`, { body: patches }),
+      fetchJSON<OAuth2Client>('PATCH', `/admin/clients/${encodeURIComponent(id)}`, { body: patches }),
 
-    deleteClient: (id) => fetchVoid('DELETE', `/admin/clients/${id}`),
+    deleteClient: (id) => fetchVoid('DELETE', `/admin/clients/${encodeURIComponent(id)}`),
 
     setClientLifespans: (id, lifespans) =>
-      fetchJSON<OAuth2Client>('PUT', `/admin/clients/${id}/lifespans`, {
+      fetchJSON<OAuth2Client>('PUT', `/admin/clients/${encodeURIComponent(id)}/lifespans`, {
         body: lifespans,
       }),
 
