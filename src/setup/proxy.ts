@@ -21,6 +21,8 @@ app.use(express.urlencoded({ extended: true }))
 const redisClient = new Redis({
   host: appConfig.redisHost,
   port: appConfig.redisPort,
+  // ioredis 6 defaults to RESP3, which fails on Redis < 6; keep the v5 wire protocol
+  protocol: 2,
 })
 
 // Create Redis service layer from the redis client
