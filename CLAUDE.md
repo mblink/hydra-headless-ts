@@ -52,7 +52,7 @@ npm run build && npm run serve:dev         # run locally against /etc/hydra-head
 
 ## Style
 
-- Prettier: no semicolons, single quotes, 100-column width, trailing commas (es5).
+- Prettier: no semicolons, single quotes, 100-column width, trailing commas (es5), as defined in `.prettierrc.json`. The `"prettier": "ory-prettier-styles"` key in `package.json` takes precedence, so plain `npx prettier`/`npm run format` switches to double quotes. Format with `npx prettier --config .prettierrc.json --write <files>`.
 - ESM with `module: nodenext`, so relative imports must use the `.js` extension, even from `.ts` files.
 - ESLint enforces import order, `consistent-type-imports` and `no-floating-promises`, and includes `eslint-plugin-functional`.
 
