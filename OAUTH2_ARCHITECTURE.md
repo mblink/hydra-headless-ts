@@ -382,7 +382,7 @@ Environment-based configuration using Effect Config:
 ```typescript
 // src/fp/config.ts
 export const appConfigEffect = Config.all({
-  environment: Config.string('APP_ENV').pipe(Config.withDefault('development')),
+  environment: Config.string('APP_ENV').pipe(Config.withDefault('local')),
   baseUrl: Config.string('BASE_URL'),
   publicDomain: Config.string('PUBLIC_DOMAIN'),
   hydraPublicUrl: Config.string('HYDRA_PUBLIC_URL'),
@@ -394,9 +394,10 @@ export const appConfigEffect = Config.all({
 
 **Environment Files:**
 
+At runtime the server reads env files from `/etc/hydra-headless-ts/` (see [DEVELOPMENT.md](DEVELOPMENT.md#environment-configuration)). The checked-in examples are:
+
 - [src/env/local.env](src/env/local.env) - Local development
 - [src/env/staging.env](src/env/staging.env) - Staging environment
-- [src/env/production.env](src/env/production.env) - Production environment
 
 ## Error Handling
 
