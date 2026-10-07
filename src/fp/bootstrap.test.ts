@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { Effect, Layer, Context } from 'effect'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { OAuth2ApiService } from '../api/oauth2.js'
@@ -26,6 +27,8 @@ describe('bootstrap', () => {
 
   beforeEach(() => {
     mockRedis = createMockRedis()
+    // JWTService (hydra provider) eagerly fetches its signing key; keep it off the network
+    vi.spyOn(axios, 'get').mockReturnValue(new Promise(() => {}))
   })
 
   describe('createLoggerLayer', () => {

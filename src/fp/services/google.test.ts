@@ -67,12 +67,16 @@ describe('GoogleOAuthService', () => {
       expect(result).toEqual(mockResponse)
       expect(axios.post).toHaveBeenCalledWith(
         'https://oauth2.googleapis.com/token',
+        expect.any(String),
         expect.objectContaining({
-          grant_type: 'refresh_token',
-          refresh_token: 'refresh-token-123',
-        }),
-        expect.any(Object)
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        })
       )
+      const body = new URLSearchParams(vi.mocked(axios.post).mock.calls[0][1] as string)
+      expect(body.get('grant_type')).toBe('refresh_token')
+      expect(body.get('refresh_token')).toBe('refresh-token-123')
+      expect(body.get('client_id')).toBe('test-client-id')
+      expect(body.get('client_secret')).toBe('test-client-secret')
     })
 
     it('should handle Google auth errors', async () => {
@@ -185,7 +189,9 @@ describe('GoogleOAuthService', () => {
       expect(mockOAuth2Client.generateAuthUrl).toHaveBeenCalledWith({
         access_type: 'offline',
         scope: 'openid profile email',
+        prompt: 'consent',
         state: 'state-123',
+        response_type: 'code',
         redirect_uri: 'https://auth.example.com/callback',
       })
     })
@@ -215,6 +221,7 @@ describe('GoogleOAuthService', () => {
           access_token: 'access-token-123',
           token_type: 'Bearer',
           expires_in: 3600,
+          scope: 'openid email',
           refresh_token: 'refresh-token-123',
           id_token: 'id-token-123',
         },
@@ -235,7 +242,10 @@ describe('GoogleOAuthService', () => {
 
       expect(result.access_token).toBe('access-token-123')
       expect(result.refresh_token).toBe('refresh-token-123')
-      expect(mockOAuth2Client.getToken).toHaveBeenCalledWith('auth-code-123')
+      expect(mockOAuth2Client.getToken).toHaveBeenCalledWith({
+        code: 'auth-code-123',
+        redirect_uri: 'https://auth.example.com/callback',
+      })
     })
 
     it('should handle token exchange errors', async () => {
@@ -273,12 +283,16 @@ describe('GoogleOAuthService', () => {
       expect(result.access_token).toBe('new-access-token')
       expect(axios.post).toHaveBeenCalledWith(
         'https://oauth2.googleapis.com/token',
+        expect.any(String),
         expect.objectContaining({
-          grant_type: 'refresh_token',
-          refresh_token: 'refresh-token-123',
-        }),
-        expect.any(Object)
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        })
       )
+      const body = new URLSearchParams(vi.mocked(axios.post).mock.calls[0][1] as string)
+      expect(body.get('grant_type')).toBe('refresh_token')
+      expect(body.get('refresh_token')).toBe('refresh-token-123')
+      expect(body.get('client_id')).toBe('test-client-id')
+      expect(body.get('client_secret')).toBe('test-client-secret')
     })
 
     it('should handle expired refresh token', async () => {
@@ -404,7 +418,7 @@ describe('GoogleOAuthService', () => {
 
       expect(axios.post).toHaveBeenCalledWith(
         'https://custom.example.com/token',
-        expect.any(Object),
+        expect.any(String),
         expect.any(Object)
       )
     })
