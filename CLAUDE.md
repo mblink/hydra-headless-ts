@@ -20,10 +20,10 @@ npm run format / npm run format:check      # prettier on src/**
 npm run validate                           # typecheck + lint + test
 npm run build                              # clean, tsc, rollup -> dist/app-fp.js
 npm run tswatch                            # tsc watch for compile errors only
-npm run build && npm run serve:local       # run locally (see README)
+npm run build && npm run serve:dev         # run locally against /etc/hydra-headless-ts/local.env
 ```
 
-- Runtime scripts (`serve:*`, `start:*`, `validate-token:*`) read env files from `/etc/hydra-headless-ts/*.env`; the `cli*` scripts read `src/env/{local,staging}.env`. `src/env/production.env` is referenced but not checked in.
+- Runtime scripts read env files from `/etc/hydra-headless-ts/*.env`. Of the `start:*`/`serve:*` scripts, only `serve` and `serve:dev` actually pass `--env-file`; the others set `NODE_ENV` to an `--env-file` string, so variables must already be exported. All of them run `dist/app-fp.js`, so build first. The `cli*` scripts read `src/env/*.env`; only `local.env` and `staging.env` are checked in.
 - `docker-compose.yml` brings up Hydra (v25), its migration, Postgres, Redis and the app container; it mounts `/etc/hydra-headless-ts` (including `hydra.yml`) read-only.
 
 ## Architecture
@@ -47,7 +47,7 @@ npm run build && npm run serve:local       # run locally (see README)
 - Logging goes through Effect's logger (`src/logging-effect.ts`). Use `syncLogger` outside Effect code.
 
 **Legacy/stale code to be aware of:**
-- `src/fp/README.md`, `src/fp/types.ts` and `src/fp/environment.ts` describe an earlier fp-ts/io-ts `ReaderTaskEither` design. The live code uses Effect, so follow the Effect patterns instead.
+- `src/fp/types.ts` and `src/fp/environment.ts` are left over from an earlier fp-ts/io-ts `ReaderTaskEither` design and nothing imports them. The live code uses Effect (see `src/fp/README.md`).
 - Non-`-fp` files such as `src/routes/index.ts` and `src/logging.ts` are older versions that `app-fp.ts` does not wire up.
 
 ## Style
