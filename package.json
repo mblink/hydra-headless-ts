@@ -70,8 +70,8 @@
   },
   "devDependencies": {
     "@kitajs/ts-html-plugin": "^4.1.4",
-    "@ory/hydra-client-fetch": "^2.4.0-alpha.1",
-    "@rollup/plugin-commonjs": "^28.0.9",
+    "@ory/hydra-client-fetch": "^26.2.0",
+    "@rollup/plugin-commonjs": "^29.0.3",
     "@rollup/plugin-json": "^6.1.0",
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-typescript": "^12.3.0",
@@ -81,7 +81,7 @@
     "@typescript-eslint/eslint-plugin": "^8.71.1",
     "@typescript-eslint/parser": "^8.71.1",
     "eslint": "^9.39.5",
-    "eslint-plugin-functional": "^9.0.5",
+    "eslint-plugin-functional": "^10.0.1",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-promise": "^7.3.0",
     "npm-run-all": "^4.1.5",
@@ -91,5 +91,8 @@
     "rollup-plugin-copy2": "^0.4.0",
     "ts-node-dev": "^2.0.0",
     "vitest": "^5.0.3"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.0"
   }
 }
