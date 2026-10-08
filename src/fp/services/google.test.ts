@@ -15,12 +15,21 @@ vi.mock('axios', () => {
   return { default: instance, ...instance }
 })
 
+// Mock implementation for the OAuth2Client constructor. It must be a plain
+// `function`: vitest 4+ invokes it with `new` (so no arrow), vitest 3 without
+// (so no class), and CI's image can lag package.json by a vitest major.
+function constructorReturning<T>(instance: T) {
+  return function () {
+    return instance
+  }
+}
+
 // Mock google-auth-library
 vi.mock('google-auth-library', () => ({
-  OAuth2Client: vi.fn(class {
-    generateAuthUrl = vi.fn()
-    getToken = vi.fn()
-  }),
+  OAuth2Client: vi.fn().mockImplementation(constructorReturning({
+    generateAuthUrl: vi.fn(),
+    getToken: vi.fn(),
+  })),
 }))
 
 describe('GoogleOAuthService', () => {
@@ -172,7 +181,7 @@ describe('GoogleOAuthService', () => {
       }
 
       // Mock the OAuth2Client constructor to return our mock
-      vi.mocked(OAuth2Client).mockImplementation(class { constructor() { return mockOAuth2Client } } as any)
+      vi.mocked(OAuth2Client).mockImplementation(constructorReturning(mockOAuth2Client as any))
 
       // Recreate service with mocked client
       googleService = makeGoogleOAuthService(mockConfig)
@@ -230,7 +239,7 @@ describe('GoogleOAuthService', () => {
         getToken: vi.fn().mockResolvedValue(mockTokenResponse),
       }
 
-      vi.mocked(OAuth2Client).mockImplementation(class { constructor() { return mockOAuth2Client } } as any)
+      vi.mocked(OAuth2Client).mockImplementation(constructorReturning(mockOAuth2Client as any))
       googleService = makeGoogleOAuthService(mockConfig)
 
       const program = googleService.getTokensFromCode(
@@ -251,7 +260,7 @@ describe('GoogleOAuthService', () => {
         getToken: vi.fn().mockRejectedValue(new Error('Invalid code')),
       }
 
-      vi.mocked(OAuth2Client).mockImplementation(class { constructor() { return mockOAuth2Client } } as any)
+      vi.mocked(OAuth2Client).mockImplementation(constructorReturning(mockOAuth2Client as any))
       googleService = makeGoogleOAuthService(mockConfig)
 
       const program = googleService.getTokensFromCode('invalid-code', 'https://example.com')
