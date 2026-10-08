@@ -290,8 +290,10 @@ const securityConfig = (
     ),
     csrfTokenName: Config.succeed(isLocal ? 'dev_xsrf_token' : 'xsrf_token'),
     xsrfHeaderName: Config.succeed(isLocal ? 'dev_xsrf_token' : 'xsrf_token'),
-    sameSite: Config.succeed<SameSiteType>(isLocal ? 'lax' : 'none'),
-    httpOnly: Config.succeed(!https),
+    // Browsers drop SameSite=None cookies that are not Secure, so only use None over https
+    sameSite: Config.succeed<SameSiteType>(!isLocal && https ? 'none' : 'lax'),
+    // Cookies we set are never read by client-side JS
+    httpOnly: Config.succeed(true),
     secure: Config.succeed(https),
     mockTlsTermination: Config.boolean('MOCK_TLS_TERMINATION').pipe(Config.withDefault(false)),
     jwtSecret: Config.string('JWT_SECRET').pipe(

@@ -6,17 +6,22 @@ const {
   doubleCsrfProtection, // The middleware to protect routes
   generateCsrfToken, // Helper function to generate a CSRF token
 } = doubleCsrf({
-  getSecret: () => 'G6KaOf8aJsLagw566he8yxOTTO3tInKD',
-  cookieName: 'appConfig.xsrfHeaderName',
+  getSecret: () => appConfig.security.cookieSecret,
+  cookieName: appConfig.security.csrfTokenName,
   cookieOptions: {
-    sameSite: 'none', // Secure cookie settings
-    httpOnly: true,
-    secure: false,
+    sameSite: appConfig.sameSite,
+    httpOnly: appConfig.httpOnly,
+    secure: appConfig.secure,
     maxAge: 30 * 24 * 60 * 60 * 1000,
   },
   getSessionIdentifier: (req) => {
     return req.session.id
   },
+  // Forms submit the token in a hidden field named after xsrfHeaderName (see views/*.tsx);
+  // also accept the library's default header for non-form clients
+  getCsrfTokenFromRequest: (req) =>
+    (req.body as Record<string, string> | undefined)?.[appConfig.security.xsrfHeaderName] ??
+    req.headers['x-csrf-token'],
   // CSRF protection is applied selectively to routes with forms (logout, device/verify)
   // All other routes (including POST /) are not protected
 })

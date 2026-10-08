@@ -58,6 +58,10 @@ describe('fp/config', () => {
 
       expect(result.baseUrl).toMatch(/^http:\/\//)
       expect(result.hydra.public.url).toMatch(/^http:\/\//)
+      // SameSite=None requires Secure, which plain http can't provide
+      expect(result.security.secure).toBe(false)
+      expect(result.security.sameSite).toBe('lax')
+      expect(result.security.httpOnly).toBe(true)
     })
   })
 
@@ -121,6 +125,7 @@ describe('fp/config', () => {
       expect(result.baseUrl).toMatch(/^https:\/\//)
       expect(result.security.secure).toBe(true)
       expect(result.security.sameSite).toBe('none')
+      expect(result.security.httpOnly).toBe(true)
       expect(result.security.sessionSecret).toBe('prod-session-secret')
       expect(result.security.cookieSecret).toBe('prod-cookie-secret')
       expect(result.redis).toEqual({ host: '10.0.0.101', port: 6379 })
