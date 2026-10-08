@@ -11,7 +11,7 @@ import {
   GoogleTokenDataSchema,
   JWTRefreshDataSchema,
 } from '../domain.js'
-import { type AppError, MissingParameter } from '../errors.js'
+import { type AppError, InvalidGrant, MissingParameter } from '../errors.js'
 import { validatePKCE, parseScopeString, validateScopes } from '../validation.js'
 import { GoogleOAuthService } from './google.js'
 import { JWTService } from './jwt.js'
@@ -54,11 +54,23 @@ export const processAuthCodeGrant = (
       pkceState.code_challenge_method
     )
 
+    // Remaining Google token lifetime, measured now rather than at callback time
+    const tokenObj = authData.google_tokens.tokens
+    const now = Date.now()
+    const expiresAt = authData.google_expires_at ?? now + tokenObj.expires_in * 1000
+    const expiresIn = Math.floor((expiresAt - now) / 1000)
+    if (expiresIn <= 0) {
+      return yield* Effect.fail(
+        new InvalidGrant({
+          reason: 'Google access token expired before the authorization code was exchanged',
+        })
+      )
+    }
+
     // Step 4: Generate JTI for this access token
     const jti = yield* jwt.generateJti()
 
     // Step 5: Store Google's tokens in Redis (indexed by JTI)
-    const tokenObj = authData.google_tokens.tokens
     const googleTokenData: GoogleTokenData = {
       google_access_token: tokenObj.access_token,
       google_refresh_token: tokenObj.refresh_token ?? '',
@@ -66,8 +78,8 @@ export const processAuthCodeGrant = (
       scope: tokenObj.scope,
       subject: authData.subject ?? 'user',
       client_id: pkceState.client_id,
-      expires_at: Date.now() + tokenObj.expires_in * 1000,
-      updated_at: Date.now(),
+      expires_at: expiresAt,
+      updated_at: now,
     }
 
     yield* redisOps.setGoogleToken(jti, googleTokenData)
@@ -98,7 +110,7 @@ export const processAuthCodeGrant = (
         client_id: pkceState.client_id,
         jti,
       },
-      tokenObj.expires_in,
+      expiresIn,
       googleTokenData.google_id_token // Pass Google ID token for Google mode
     )
 
@@ -106,7 +118,7 @@ export const processAuthCodeGrant = (
     const response: OAuth2TokenResponse = {
       access_token: accessToken, // JWT instead of Google's opaque token
       token_type: 'Bearer',
-      expires_in: tokenObj.expires_in,
+      expires_in: expiresIn,
       refresh_token: ourRefreshToken, // Our own refresh token
       scope: tokenObj.scope,
     }

@@ -5,7 +5,6 @@ import * as crypto from 'crypto'
 import { Effect } from 'effect'
 import { PKCEStateSchema } from '../domain.js'
 import { type AppError, GoogleAuthError } from '../errors.js'
-import { googleExpiresIn } from './google.js'
 import { RedisService, createOAuthRedisOps } from './redis.js'
 import type { AuthCodeData } from '../domain.js'
 
@@ -117,18 +116,25 @@ export const processCallback = (
     // Step 4: Generate new auth_code for passthrough
     const authCode = crypto.randomBytes(32).toString('base64url')
 
+    // google-auth-library replaces Google's relative expires_in with an absolute expiry_date.
+    // Store the absolute time so the delay before the code exchange isn't counted as lifetime.
+    const now = Date.now()
+    const googleExpiresAt =
+      googleTokens.tokens.expiry_date ?? now + (googleTokens.tokens.expires_in ?? 3600) * 1000
+
     const authData: AuthCodeData = {
       google_tokens: {
         tokens: {
           access_token: googleTokens.tokens.access_token,
           scope: googleTokens.tokens.scope ?? '',
-          expires_in: googleExpiresIn(googleTokens.tokens) ?? 3600,
+          expires_in: Math.max(0, Math.round((googleExpiresAt - now) / 1000)),
           token_type: googleTokens.tokens.token_type ?? 'Bearer',
           refresh_token: googleTokens.tokens.refresh_token ?? undefined,
           id_token: googleTokens.tokens.id_token ?? undefined,
         },
       },
       subject: undefined, // Will be populated from user info if needed
+      google_expires_at: googleExpiresAt,
     }
 
     yield* Effect.logInfo('AuthData').pipe(Effect.annotateLogs({ authData }))

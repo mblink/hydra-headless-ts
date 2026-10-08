@@ -165,6 +165,9 @@ export const AuthCodeDataSchema = Schema.Struct({
     tokens: GoogleTokenResponseSchema,
   }),
   subject: Schema.optional(Schema.String),
+  // Absolute expiry of the Google access token (ms since epoch). Optional so auth codes
+  // issued before this field existed can still be exchanged.
+  google_expires_at: Schema.optional(Schema.Number),
 })
 export type AuthCodeData = typeof AuthCodeDataSchema.Type
 

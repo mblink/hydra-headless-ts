@@ -10,7 +10,7 @@
  */
 import axios from 'axios'
 import { Effect, pipe, Context, Layer } from 'effect'
-import { OAuth2Client, type Credentials } from 'google-auth-library'
+import { OAuth2Client } from 'google-auth-library'
 import { GoogleTokenResponseSchema, GoogleUserInfoSchema } from '../domain.js'
 import { NetworkError, HttpStatusError, ParseError, GoogleAuthError } from '../errors.js'
 import { validateSchema } from '../validation.js'
@@ -32,11 +32,6 @@ export interface GoogleOAuthService {
     redirectUrl: string
   ) => Effect.Effect<string, HttpError>
 
-  readonly getTokensFromCode: (
-    code: string,
-    redirectUrl: string
-  ) => Effect.Effect<GoogleTokenResponse, HttpError | GoogleAuthError>
-
   readonly refreshAccessToken: (
     refreshToken: string
   ) => Effect.Effect<GoogleTokenResponse, HttpError | GoogleAuthError>
@@ -51,41 +46,6 @@ export interface GoogleOAuthService {
  * Google OAuth service tag
  */
 export const GoogleOAuthService = Context.GenericTag<GoogleOAuthService>('GoogleOAuthService')
-
-/**
- * Seconds until a Google access token expires.
- *
- * Google's token endpoint returns a relative `expires_in`, but google-auth-library's
- * OAuth2Client.getToken() replaces it with an absolute `expiry_date` (ms since epoch)
- * and deletes `expires_in`. Accept either shape.
- */
-export const googleExpiresIn = (
-  tokens: { expires_in?: number | null; expiry_date?: number | null },
-  now: number = Date.now()
-): number | undefined => {
-  if (tokens.expires_in != null) {
-    return tokens.expires_in
-  }
-  if (tokens.expiry_date != null) {
-    return Math.max(0, Math.round((tokens.expiry_date - now) / 1000))
-  }
-  return undefined
-}
-
-/**
- * Convert google-auth-library Credentials back to the token endpoint response shape:
- * restore `expires_in` from `expiry_date` and drop null fields (Credentials uses null for
- * absent values, which the schema's optional fields don't accept).
- */
-export const credentialsToTokenResponse = (
-  credentials: Credentials,
-  now: number = Date.now()
-): Record<string, unknown> => {
-  const { expiry_date: _expiryDate, ...rest } = credentials
-  const fields = Object.fromEntries(Object.entries(rest).filter(([, value]) => value != null))
-  const expiresIn = googleExpiresIn(credentials, now)
-  return expiresIn === undefined ? fields : { ...fields, expires_in: expiresIn }
-}
 
 /**
  * Configuration for Google OAuth
@@ -251,74 +211,6 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
             cause: error,
           }),
       }),
-
-    getTokensFromCode: (code: string, redirectUrl: string) =>
-      pipe(
-        Effect.logInfo('=== GOOGLE getTokensFromCode CALLED ===').pipe(
-          Effect.annotateLogs({
-            has_code: !!code,
-            code_preview: code ? `${code.substring(0, 20)}...` : 'none',
-            redirect_url: redirectUrl,
-            timestamp: new Date().toISOString(),
-          })
-        ),
-        Effect.andThen(() =>
-          Effect.tryPromise({
-            try: async () => {
-              if (!oauth2Client) {
-                throw new Error('OAuth2Client not initialized - redirectUri required in config')
-              }
-              const response = await oauth2Client.getToken({
-                code,
-                redirect_uri: redirectUrl,
-              })
-              return credentialsToTokenResponse(response.tokens)
-            },
-            catch: (error) => handleAxiosError(error, 'getTokensFromCode'),
-          })
-        ),
-        Effect.tap((data) =>
-          Effect.logInfo('=== GOOGLE getTokensFromCode RESPONSE ===').pipe(
-            Effect.annotateLogs({
-              has_access_token: !!(data as any).access_token,
-              has_refresh_token: !!(data as any).refresh_token,
-              has_id_token: !!(data as any).id_token,
-              expires_in: (data as any).expires_in,
-              scope: (data as any).scope,
-              timestamp: new Date().toISOString(),
-            })
-          )
-        ),
-        Effect.flatMap((data) => validateSchema(GoogleTokenResponseSchema, data)),
-        Effect.tap((tokenResponse) =>
-          Effect.logInfo('=== GOOGLE getTokensFromCode SUCCESS ===').pipe(
-            Effect.annotateLogs({
-              expires_in: tokenResponse.expires_in,
-              scope: tokenResponse.scope,
-              has_refresh_token: !!tokenResponse.refresh_token,
-              has_id_token: !!tokenResponse.id_token,
-              timestamp: new Date().toISOString(),
-            })
-          )
-        ),
-        Effect.tapError((error) =>
-          Effect.logError('=== GOOGLE getTokensFromCode ERROR ===').pipe(
-            Effect.annotateLogs({
-              error_tag: error._tag,
-              error_details: error,
-              code_preview: code ? `${code.substring(0, 20)}...` : 'none',
-              timestamp: new Date().toISOString(),
-            })
-          )
-        ),
-        Effect.mapError((error): HttpError | GoogleAuthError =>
-          error._tag === 'SchemaValidationError'
-            ? new ParseError({
-                message: `Failed to parse Google token response: ${error.errors.join(', ')}`,
-              })
-            : error
-        )
-      ),
 
     refreshAccessToken: (refreshToken: string) =>
       pipe(

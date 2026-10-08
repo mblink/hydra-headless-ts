@@ -3,6 +3,7 @@ import { Effect, Layer } from 'effect'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   GoogleAuthError,
+  InvalidGrant,
   InvalidPKCE,
   InvalidScope,
   MissingParameter,
@@ -72,7 +73,11 @@ describe('token service', () => {
     Effect.runPromise(Effect.either(Effect.provide(effect, layer)))
 
   describe('processAuthCodeGrant', () => {
-    const seedAuthCode = (method: 'S256' | 'plain' = 'S256', codeChallenge = challenge) => {
+    const seedAuthCode = (
+      method: 'S256' | 'plain' = 'S256',
+      codeChallenge = challenge,
+      googleExpiresAt?: number
+    ) => {
       store.set(
         'auth_code:code-1',
         JSON.stringify({
@@ -87,6 +92,7 @@ describe('token service', () => {
             },
           },
           subject: 'user@example.com',
+          ...(googleExpiresAt === undefined ? {} : { google_expires_at: googleExpiresAt }),
         })
       )
       store.set(
@@ -202,6 +208,39 @@ describe('token service', () => {
       const result = await run(processAuthCodeGrant(grant('plain-verifier')))
 
       expect(result._tag).toBe('Right')
+    })
+
+    it('measures the Google token lifetime at exchange time from google_expires_at', async () => {
+      // Stored expires_in (3600) is stale; the absolute expiry is what counts
+      const googleExpiresAt = Date.now() + 1000 * 1000
+      seedAuthCode('S256', challenge, googleExpiresAt)
+
+      const result = await run(processAuthCodeGrant(grant()))
+
+      expect(result._tag).toBe('Right')
+      if (result._tag !== 'Right') return
+      expect(result.right.expires_in).toBeGreaterThan(990)
+      expect(result.right.expires_in).toBeLessThanOrEqual(1000)
+      expect(jwtSign).toHaveBeenCalledWith(
+        expect.objectContaining({ jti: 'jti-1' }),
+        result.right.expires_in,
+        'g-id'
+      )
+      const googleData = readJSON(store, 'google_token:jti-1') as GoogleTokenData
+      expect(googleData.expires_at).toBe(googleExpiresAt)
+    })
+
+    it('rejects the exchange when the Google token has already expired', async () => {
+      seedAuthCode('S256', challenge, Date.now() - 1000)
+
+      const result = await run(processAuthCodeGrant(grant()))
+
+      expect(result._tag).toBe('Left')
+      if (result._tag === 'Left') {
+        expect(result.left).toBeInstanceOf(InvalidGrant)
+      }
+      expect(jwtSign).not.toHaveBeenCalled()
+      expect(store.has('google_token:jti-1')).toBe(false)
     })
 
     it('fails when the auth code is unknown', async () => {

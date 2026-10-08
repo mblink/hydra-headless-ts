@@ -53,6 +53,7 @@ describe('processCallback', () => {
     )
 
   it('stores Google tokens under a new auth code and redirects to the client', async () => {
+    const googleExpiresAt = Date.now() + 1799 * 1000
     // Shape returned by google-auth-library's getToken(): expiry_date instead of expires_in
     const googleClient: GoogleOAuthClient = {
       getToken: vi.fn(async () => ({
@@ -62,7 +63,7 @@ describe('processCallback', () => {
           id_token: 'g-id',
           scope: 'openid email',
           token_type: 'Bearer',
-          expiry_date: Date.now() + 1799 * 1000,
+          expiry_date: googleExpiresAt,
         },
       })),
     }
@@ -86,6 +87,8 @@ describe('processCallback', () => {
     // Uses Google's real lifetime rather than a hardcoded 3600
     expect(authData.google_tokens.tokens.expires_in).toBeGreaterThanOrEqual(1798)
     expect(authData.google_tokens.tokens.expires_in).toBeLessThanOrEqual(1799)
+    // The absolute expiry is stored so the exchange can measure the remaining lifetime
+    expect(authData.google_expires_at).toBe(googleExpiresAt)
 
     expect(JSON.parse(store.get(`auth_code_state:${code}`)!)).toEqual(pkceState)
     expect(store.has('pkce_session:pkce-1')).toBe(false)
