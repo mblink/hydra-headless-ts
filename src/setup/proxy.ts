@@ -42,33 +42,29 @@ const proxyOptions = {
         proxiedUrl: `${appConfig.hydraInternalUrl}${parsed.pathname}`,
         body: req.body,
       })
-      if (req.method !== 'GET' && Object.keys(req.body).length > 0) {
+      // express.json() has already consumed the request stream, so re-send the parsed body
+      if (req.method !== 'GET' && req.body && Object.keys(req.body).length > 0) {
+        // Hydra expects `contacts` to be an array; some DCR clients send null
+        if (req.body.contacts === null) {
+          syncLogger.info('Setting null contacts to [] in /oauth2/register body')
+          req.body.contacts = []
+        }
+        const bodyData = JSON.stringify(req.body)
         syncLogger.info('Populating proxy request body for non-GET request', {
           body: req.body,
-          length: JSON.stringify(req.body).length,
+          length: Buffer.byteLength(bodyData),
         })
         proxyReq.path = req.originalUrl
-        proxyReq.write(JSON.stringify(req.body))
+        // Headers must be set before the first write; the client's Content-Length no longer applies
+        proxyReq.setHeader('Content-Type', 'application/json')
+        proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData))
+        proxyReq.write(bodyData)
       }
       syncLogger.info('Proxy onProxyReq processing', {
         method: req.method,
         originalUrl: req.originalUrl,
         proxyPath: proxyReq.path,
       })
-      // Special handling for /oauth2/register to fix contacts being null
-      if (req.body && typeof req.body === 'object' && req.body?.contacts === null) {
-        syncLogger.info(
-          'Modifying /oauth2/register request body to set contacts to empty array instead of null'
-        )
-        // Hydra expects contacts to be an array, not null
-        req.body.contacts = []
-        const bodyData = JSON.stringify(req.body)
-        // Update content-length header
-        proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData))
-        // Write modified body to proxy request
-        proxyReq.write(bodyData)
-        proxyReq.end()
-      }
     },
   },
   pathRewrite: async (path: string, req: Request) => {

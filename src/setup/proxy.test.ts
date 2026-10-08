@@ -143,4 +143,33 @@ describe('setup/proxy (Hydra passthrough)', () => {
     expect(new URL(received[0].url, 'http://hydra').pathname).toBe('/oauth2/register')
     expect(JSON.parse(received[0].body)).toEqual(body)
   })
+
+  it('rewrites null contacts to [] with a matching Content-Length', async () => {
+    const res = await fetch(`${appUrl}/oauth2/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_name: 'Claude', contacts: null }),
+    })
+
+    expect(res.status).toBe(200)
+    expect(received).toHaveLength(1)
+    expect(JSON.parse(received[0].body)).toEqual({ client_name: 'Claude', contacts: [] })
+    expect(Number(received[0].headers['content-length'])).toBe(Buffer.byteLength(received[0].body))
+  })
+
+  it('recomputes Content-Length when re-serializing changes the body size', async () => {
+    const body = { client_name: 'Claude', redirect_uris: ['https://claude.ai/cb'] }
+
+    const res = await fetch(`${appUrl}/oauth2/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // Pretty-printed: longer than the JSON.stringify output the proxy sends upstream
+      body: JSON.stringify(body, null, 2),
+    })
+
+    expect(res.status).toBe(200)
+    expect(received).toHaveLength(1)
+    expect(JSON.parse(received[0].body)).toEqual(body)
+    expect(Number(received[0].headers['content-length'])).toBe(Buffer.byteLength(received[0].body))
+  })
 })
