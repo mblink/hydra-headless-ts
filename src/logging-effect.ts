@@ -9,7 +9,7 @@ import { logDirConfig } from './fp/config.js'
  * Rotating file stream for persistent logs
  * Rotates daily, compresses old logs
  */
-export const accessLogStream = createStream('hydra-headless.log', {
+const accessLogStream = createStream('hydra-headless.log', {
   interval: '1d',
   path: Effect.runSync(logDirConfig),
   compress: 'gzip',
@@ -19,7 +19,7 @@ export const accessLogStream = createStream('hydra-headless.log', {
  * Custom Effect logger that writes to both stdout and rotating file
  * Maintains same JSON format as previous jsonLogger for compatibility
  */
-export const customLogger = Logger.make<unknown, void>(
+const customLogger = Logger.make<unknown, void>(
   ({ logLevel, message, annotations, spans, fiberId, date }) => {
     // Convert annotations HashMap to plain object
     const annotationsObj: Record<string, unknown> = {}
@@ -64,7 +64,7 @@ export const createLoggerLayer = () => Logger.replace(Logger.defaultLogger, cust
  * Synchronous logging helper for non-Effect code
  * Writes directly to stdout and file without running Effect
  */
-export const logSync = (
+const logSync = (
   level: 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL',
   message: string,
   annotations?: Record<string, unknown>

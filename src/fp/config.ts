@@ -5,13 +5,13 @@
  * Configuration is loaded from environment variables with proper validation
  * and type safety. Uses Effect for composable, testable configuration.
  */
-import { Config, Effect, Layer, pipe, Context } from 'effect'
+import { Config, Effect, pipe } from 'effect'
 import type { SameSiteType } from 'csrf-csrf'
 
 /**
  * Environment types
  */
-export type AppEnvironment = 'local' | 'development' | 'staging' | 'production'
+type AppEnvironment = 'local' | 'development' | 'staging' | 'production'
 
 /**
  * Domain configuration
@@ -67,7 +67,7 @@ export interface GoogleOAuthConfig {
  * - 'hydra': Sign JWTs with keys from Hydra's JWKS (default)
  * - 'google': Sign JWTs with keys from Google's JWKS for MCP server compatibility
  */
-export type JWTProvider = 'hydra' | 'google'
+type JWTProvider = 'hydra' | 'google'
 
 /**
  * Security configuration
@@ -371,16 +371,6 @@ export const appConfigEffect = Effect.gen(function* () {
 })
 
 /**
- * Service tag for AppConfig
- */
-export const AppConfigService = Context.GenericTag<AppConfig>('@services/AppConfig')
-
-/**
- * Layer that provides AppConfig
- */
-export const AppConfigLive = Layer.effect(AppConfigService, appConfigEffect)
-
-/**
  * Load configuration synchronously (for backwards compatibility)
  * This should be replaced with Effect-based loading in the future
  */
@@ -392,22 +382,11 @@ export const loadAppConfigSync = (): AppConfig => {
 /**
  * Helper functions for constructing URLs
  */
-export const constructUrl = (protocol: 'http' | 'https', host: string, port?: number): string => {
+const constructUrl = (protocol: 'http' | 'https', host: string, port?: number): string => {
   if (!port || (protocol === 'http' && port === 80) || (protocol === 'https' && port === 443)) {
     return `${protocol}://${host}`
   }
   return `${protocol}://${host}:${port}`
-}
-
-export const getJWKSUrl = (config: AppConfig): string => {
-  const protocol = config.security.mockTlsTermination ? 'http' : 'https'
-  return `${constructUrl(protocol, config.domain.public, config.port)}/.well-known/jwks.json`
-}
-/**
- * Get Hydra public URL
- */
-export const getHydraPublicUrl = (config: AppConfig): string => {
-  return config.hydra.public.url
 }
 
 /**

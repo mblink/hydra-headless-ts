@@ -88,5 +88,3 @@ export const createIndexRouter = (serviceLayer: Layer.Layer<never>) => {
   router.post('/', createPostHandler(serviceLayer))
   return router
 }
-
-export default router

@@ -92,8 +92,6 @@ User → Client App → Hydra /oauth2/auth
 
 **Key Files:**
 
-- [src/views/login.tsx](src/views/login.tsx) - Login page template
-- [src/views/consent.tsx](src/views/consent.tsx) - Consent page template
 - [src/routes/login-fp.ts](src/routes/login-fp.ts) - Login handler
 - [src/routes/consent-fp.ts](src/routes/consent-fp.ts) - Consent handler
 - [src/routes/callback-fp.ts](src/routes/callback-fp.ts) - Google OAuth callback
@@ -278,14 +276,15 @@ All HTML templates are type-safe TypeScript functions:
 **Example:**
 
 ```typescript
-// src/views/login.tsx
-export interface LoginProps {
-  challenge: string
+// src/views/logout.tsx
+export interface LogoutProps {
+  action: string
+  envXsrfToken: string
   csrfToken: string
-  // ... TypeScript enforces all props
+  challenge: string
 }
 
-export function Login(props: LoginProps): string {
+export function Logout({ action, envXsrfToken, csrfToken, challenge }: LogoutProps): string {
   return Layout({ /* ... */ })
 }
 ```

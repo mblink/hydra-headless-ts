@@ -164,5 +164,3 @@ export const createCallbackRouter = (
   router.get('/', createCallbackHandler(serviceLayer, googleClient, config))
   return router
 }
-
-export default router

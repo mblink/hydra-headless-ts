@@ -37,22 +37,6 @@ export const appConfig = (() => {
 })()
 
 /**
- * Postgres configuration for connection pool
- */
-export const pgConfig = {
-  user: appConfig.database.user,
-  password: appConfig.database.password,
-  database: appConfig.database.database,
-  host: appConfig.database.host,
-  port: appConfig.database.port,
-}
-
-/**
- * DCR Master Client ID
- */
-export const DCR_MASTER_CLIENT_ID = appConfig.dcrMasterClientId
-
-/**
  * PostgreSQL session store
  */
 export const PgStore = connectPgSimple(session)

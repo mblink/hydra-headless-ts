@@ -126,5 +126,3 @@ export const createLogoutRouter = (
   router.post('/', doubleCsrfProtection, createLogoutPostHandler(serviceLayer))
   return router
 }
-
-export default router

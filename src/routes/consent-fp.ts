@@ -132,5 +132,3 @@ export const createConsentRouter = (
   router.get('/', createConsentHandler(serviceLayer, config))
   return router
 }
-
-export default router

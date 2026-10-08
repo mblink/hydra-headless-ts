@@ -217,7 +217,7 @@ export const OAuth2ApiService = Context.GenericTag<OAuth2ApiService>('OAuth2ApiS
 /**
  * Create OAuth2 API service implementation
  */
-export const makeOAuth2ApiService = (config: OAuth2ApiConfig): OAuth2ApiService => {
+const makeOAuth2ApiService = (config: OAuth2ApiConfig): OAuth2ApiService => {
   const baseUrl = config.basePath
 
   /**

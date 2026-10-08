@@ -13,7 +13,7 @@ import { syncLogger } from '../../logging-effect.js'
 /**
  * JWT Claims structure
  */
-export interface JWTClaims extends JWTPayload {
+interface JWTClaims extends JWTPayload {
   sub: string // Subject (user ID)
   scope: string // Space-separated scopes
   client_id: string // OAuth2 client ID
@@ -85,7 +85,7 @@ export const JWTService = Context.GenericTag<JWTService>('JWTService')
 /**
  * JWT Provider type
  */
-export type JWTProvider = 'hydra' | 'google'
+type JWTProvider = 'hydra' | 'google'
 
 /**
  * JWT Service configuration

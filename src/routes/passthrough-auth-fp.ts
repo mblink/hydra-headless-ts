@@ -46,11 +46,6 @@ const mapErrorToOAuth2 = (error: AppError): { status: number; body: object } => 
         status: 400,
         body: createOAuth2Error('invalid_request', `${error.parameter} required`),
       }
-    case 'ExpiredToken':
-      return {
-        status: 400,
-        body: createOAuth2Error('invalid_grant', 'Token expired'),
-      }
 
     // Redis errors
     case 'RedisKeyNotFound':
@@ -64,12 +59,6 @@ const mapErrorToOAuth2 = (error: AppError): { status: number; body: object } => 
       return {
         status: 400,
         body: createOAuth2Error('invalid_grant', error.errorDescription ?? error.error),
-      }
-    case 'GoogleTokenExpired':
-    case 'GoogleTokenRevoked':
-      return {
-        status: 400,
-        body: createOAuth2Error('invalid_grant', 'Refresh token expired or revoked'),
       }
 
     // Validation errors
@@ -103,7 +92,7 @@ const mapErrorToOAuth2 = (error: AppError): { status: number; body: object } => 
  * 4. Context-based dependency injection via Layers
  * 5. No side effects in the handler - all IO wrapped in Effect
  */
-export const createTokenHandler = (
+const createTokenHandler = (
   serviceLayer: Layer.Layer<RedisService | GoogleOAuthService | JWTService>
 ) => {
   return async (req: express.Request, res: express.Response) => {
@@ -241,5 +230,3 @@ export const createTokenRouter = (
   router.post('/token', createTokenHandler(serviceLayer))
   return router
 }
-
-export default router

@@ -103,5 +103,3 @@ export const createDeviceRouter = (serviceLayer: Layer.Layer<OAuth2ApiService>) 
   router.post('/verify', doubleCsrfProtection, createVerifyHandler(serviceLayer))
   return router
 }
-
-export default router

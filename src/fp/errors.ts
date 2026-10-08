@@ -48,16 +48,12 @@ export class HttpStatusError extends Data.TaggedError('HttpStatusError')<{
   body?: unknown
 }> {}
 
-export class TimeoutError extends Data.TaggedError('TimeoutError')<{
-  timeoutMs: number
-}> {}
-
 export class ParseError extends Data.TaggedError('ParseError')<{
   message: string
   raw?: string
 }> {}
 
-export type HttpError = NetworkError | HttpStatusError | TimeoutError | ParseError
+export type HttpError = NetworkError | HttpStatusError | ParseError
 
 /**
  * OAuth2/PKCE validation errors
@@ -77,20 +73,11 @@ export class InvalidScope extends Data.TaggedError('InvalidScope')<{
   granted: string[]
 }> {}
 
-export class InvalidClient extends Data.TaggedError('InvalidClient')<{
-  clientId: string
-}> {}
-
 export class MissingParameter extends Data.TaggedError('MissingParameter')<{
   parameter: string
 }> {}
 
-export class ExpiredToken extends Data.TaggedError('ExpiredToken')<{
-  tokenType: 'auth_code' | 'refresh_token'
-}> {}
-
-export type OAuthError =
-  InvalidPKCE | InvalidGrant | InvalidScope | InvalidClient | MissingParameter | ExpiredToken
+type OAuthError = InvalidPKCE | InvalidGrant | InvalidScope | MissingParameter
 
 /**
  * Google OAuth errors
@@ -99,33 +86,6 @@ export class GoogleAuthError extends Data.TaggedError('GoogleAuthError')<{
   error: string
   errorDescription?: string
 }> {}
-
-export class GoogleTokenExpired extends Data.TaggedError('GoogleTokenExpired')<{
-  refreshToken: string
-}> {}
-
-export class GoogleTokenRevoked extends Data.TaggedError('GoogleTokenRevoked')<{
-  refreshToken: string
-}> {}
-
-export type GoogleOAuthError = GoogleAuthError | GoogleTokenExpired | GoogleTokenRevoked
-
-/**
- * Session errors
- */
-export class SessionNotFound extends Data.TaggedError('SessionNotFound')<{
-  sessionId: string
-}> {}
-
-export class SessionExpired extends Data.TaggedError('SessionExpired')<{
-  sessionId: string
-}> {}
-
-export class SessionStorageError extends Data.TaggedError('SessionStorageError')<{
-  error: unknown
-}> {}
-
-export type SessionError = SessionNotFound | SessionExpired | SessionStorageError
 
 /**
  * Validation errors
@@ -148,14 +108,10 @@ export class ClientExistsError extends Data.TaggedError('ClientExists')<{
   clientId: string
   clients: string[]
 }> {}
-export class ClientNotFound extends Data.TaggedError('ClientExists')<{
-  clientId: string
-}> {}
-export type ValidationError =
-  SchemaValidationError | RequiredFieldMissing | InvalidFormat | ClientExistsError | ClientNotFound
+type ValidationError =
+  SchemaValidationError | RequiredFieldMissing | InvalidFormat | ClientExistsError
 
 /**
  * Application-level errors (union of all domain errors)
  */
-export type AppError =
-  RedisError | HttpError | OAuthError | GoogleOAuthError | SessionError | ValidationError
+export type AppError = RedisError | HttpError | OAuthError | GoogleAuthError | ValidationError

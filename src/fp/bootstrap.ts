@@ -18,19 +18,6 @@ import type { Redis } from 'ioredis'
 export const createLoggerLayer = createEffectLoggerLayer
 
 /**
- * Configuration interface
- */
-export interface AppConfig {
-  googleClientId: string
-  googleClientSecret: string
-  hydraUrl: string
-  redisHost: string
-  redisPort: number
-  middlewareRedirectUri: string
-  hostName: string
-}
-
-/**
  * Create the complete application service layer from existing infrastructure
  */
 export const createAppLayer = (
