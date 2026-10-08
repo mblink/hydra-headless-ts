@@ -1,7 +1,6 @@
-import eslint from '@eslint/js'
 import tseslint from '@typescript-eslint/eslint-plugin'
 import tsparser from '@typescript-eslint/parser'
-import importPlugin from 'eslint-plugin-import'
+import importPlugin from 'eslint-plugin-import-x'
 import promisePlugin from 'eslint-plugin-promise'
 import functionalPlugin from 'eslint-plugin-functional'
 
@@ -40,7 +39,7 @@ export default [
     },
     plugins: {
       '@typescript-eslint': tseslint,
-      import: importPlugin,
+      'import-x': importPlugin,
       promise: promisePlugin,
       functional: functionalPlugin,
     },
@@ -84,7 +83,7 @@ export default [
       'prefer-arrow-callback': 'warn',
 
       // Import rules
-      'import/order': [
+      'import-x/order': [
         'warn',
         {
           groups: [
@@ -103,8 +102,8 @@ export default [
           },
         },
       ],
-      'import/no-duplicates': 'error',
-      'import/no-cycle': 'warn',
+      'import-x/no-duplicates': 'error',
+      'import-x/no-cycle': 'warn',
 
       // Promise rules
       'promise/always-return': 'off', // Effect handles returns differently

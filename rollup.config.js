@@ -1,7 +1,6 @@
 import typescript from '@rollup/plugin-typescript';
 import packageJson from './package.json' with { type: "json" };
 import resolve from '@rollup/plugin-node-resolve';
-import copy from 'rollup-plugin-copy2';
 import json from '@rollup/plugin-json';
 import commonjs from '@rollup/plugin-commonjs';
 // {preferBuiltins:true, jsnext: true}
@@ -21,12 +20,6 @@ const config = [
       json(),
       resolve({preferBuiltins:true}),
       commonjs({include: ['src/app.ts', 'node_modules/**']}),
-      // copy({
-      //   assets: [
-      //     'views/**/*.pug',
-      //   ],
-      //   flatten: false // Preserve the directory structure within 'views'
-      // })
     ]
   }
 ];
