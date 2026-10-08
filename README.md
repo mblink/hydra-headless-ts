@@ -30,7 +30,7 @@ Local development does not enable https
 
 - [Dev Overview of Repository](./DEVELOPMENT.md)
 - [Linting](./LINTING.md)
-- [Quality Baseline](./QUALITY_BASELINE.mc)
+- [Quality Baseline](./QUALITY_BASELINE.md)
 - [Unit Tests](./README.test.md)
 
 ### Running Locally
@@ -39,9 +39,9 @@ To run this locally,
 
 Simply change into the root of the repository:
 
-- Update LocalDev settings, see [local.env](src/env/local.env)
+- Copy [src/env/local.env](src/env/local.env) to `/etc/hydra-headless-ts/local.env` and update the settings
 - Run only watching compile errors `npm run tswatch`
-- Launch the application `npm run build && npm run serve:local`
+- Launch the application `npm run build && npm run serve:dev` (reads `/etc/hydra-headless-ts/local.env`)
 
 ## Installing Docker Environment
 
