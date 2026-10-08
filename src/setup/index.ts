@@ -1,11 +1,8 @@
 import * as crypto from 'crypto'
-import { doubleCsrf } from 'csrf-csrf'
+import { doubleCsrf, type CsrfTokenGenerator } from 'csrf-csrf'
 import { appConfig } from '../config.js'
 
-const {
-  doubleCsrfProtection, // The middleware to protect routes
-  generateCsrfToken, // Helper function to generate a CSRF token
-} = doubleCsrf({
+const { doubleCsrfProtection, generateCsrfToken: generateBoundCsrfToken } = doubleCsrf({
   getSecret: () => appConfig.security.cookieSecret,
   cookieName: appConfig.security.csrfTokenName,
   cookieOptions: {
@@ -19,12 +16,32 @@ const {
   },
   // Forms submit the token in a hidden field named after xsrfHeaderName (see views/*.tsx);
   // also accept the library's default header for non-form clients
-  getCsrfTokenFromRequest: (req) =>
-    (req.body as Record<string, string> | undefined)?.[appConfig.security.xsrfHeaderName] ??
-    req.headers['x-csrf-token'],
+  getCsrfTokenFromRequest: (req) => {
+    const fromForm = (req.body as Record<string, unknown> | undefined)?.[
+      appConfig.security.xsrfHeaderName
+    ]
+    if (typeof fromForm === 'string') {
+      return fromForm
+    }
+    // A repeated header arrives as string[]; treat it as missing so validation fails cleanly
+    const fromHeader = req.headers['x-csrf-token']
+    return typeof fromHeader === 'string' ? fromHeader : undefined
+  },
   // CSRF protection is applied selectively to routes with forms (logout, device/verify)
   // All other routes (including POST /) are not protected
 })
+
+/**
+ * Generate a CSRF token bound to the current session.
+ *
+ * app-fp.ts uses `saveUninitialized: false`, so a session nothing has written to is never
+ * saved and no session cookie is sent. The form POST would then arrive with a new session id
+ * and fail validation. Writing to the session here makes express-session persist it.
+ */
+const generateCsrfToken: CsrfTokenGenerator = (req, res, options) => {
+  req.session.csrfIssuedAt = Date.now()
+  return generateBoundCsrfToken(req, res, options)
+}
 
 function validatePKCE(verifier: string, challenge: string, challengeMethod: string) {
   if (challengeMethod !== 'S256') {
