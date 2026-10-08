@@ -29,4 +29,7 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
       - run: npm test
+        env:
+          # The rotating file logger defaults to /var/log/hydra-headless-ts, which the runner can't create
+          LOG_DIR: ${{ runner.temp }}/logs
       - run: npm run build

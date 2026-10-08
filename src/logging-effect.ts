@@ -10,7 +10,7 @@ import { createStream } from 'rotating-file-stream'
  */
 export const accessLogStream = createStream('hydra-headless.log', {
   interval: '1d',
-  path: '/var/log/hydra-headless-ts',
+  path: process.env.LOG_DIR ?? '/var/log/hydra-headless-ts',
   compress: 'gzip',
 })
 
