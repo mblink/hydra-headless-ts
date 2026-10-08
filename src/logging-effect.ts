@@ -2,15 +2,16 @@
  * Unified Effect-based logging with file output
  * Replaces jsonLogger with Effect's Logger while maintaining file output
  */
-import { Logger, Layer, LogLevel } from 'effect'
+import { Effect, Logger, Layer, LogLevel } from 'effect'
 import { createStream } from 'rotating-file-stream'
+import { logDirConfig } from './fp/config.js'
 /**
  * Rotating file stream for persistent logs
  * Rotates daily, compresses old logs
  */
 export const accessLogStream = createStream('hydra-headless.log', {
   interval: '1d',
-  path: process.env.LOG_DIR ?? '/var/log/hydra-headless-ts',
+  path: Effect.runSync(logDirConfig),
   compress: 'gzip',
 })
 

@@ -6,24 +6,16 @@ import { type ClientRequest } from 'http'
 import { Effect } from 'effect'
 import express from 'express'
 import { createProxyMiddleware, fixRequestBody } from 'http-proxy-middleware'
-import { Redis } from 'ioredis'
 import { appConfig } from '../config.js'
 import { RedisService, RedisServiceLive, createOAuthRedisOps } from '../fp/services/redis.js'
 import { syncLogger } from '../logging-effect.js'
+import { redisClient } from './redis.js'
 import type { PKCEState } from '../fp/domain.js'
 import type { Request, Response, NextFunction } from 'express'
 
 const app = express()
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
-
-// Create Redis client
-const redisClient = new Redis({
-  host: appConfig.redisHost,
-  port: appConfig.redisPort,
-  // ioredis 6 defaults to RESP3, which fails on Redis < 6; keep the v5 wire protocol
-  protocol: 2,
-})
 
 // Create Redis service layer from the redis client
 const redisLayer = RedisServiceLive(redisClient)

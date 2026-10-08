@@ -103,7 +103,16 @@ export interface AppConfig {
   readonly database: DatabaseConfig
   readonly google: GoogleOAuthConfig
   readonly security: SecurityConfig
+  readonly logDir: string
 }
+
+/**
+ * Directory for the rotating file log. Exported on its own so logging-effect.ts can read it
+ * without importing the full app config (which itself logs through logging-effect.ts).
+ */
+export const logDirConfig = Config.string('LOG_DIR').pipe(
+  Config.withDefault('/var/log/hydra-headless-ts')
+)
 
 /**
  * Parse APP_ENV with fallback
@@ -338,6 +347,8 @@ export const appConfigEffect = Effect.gen(function* () {
     Config.withDefault(`${baseUrl}/callback`)
   )
 
+  const logDir = yield* logDirConfig
+
   const dcrOriginRedirectUri = yield* Config.string('DCR_ORIGIN_REDIRECT_URI').pipe(
     Config.withDefault('https://claude.ai/api/mcp/auth_callback')
   )
@@ -350,6 +361,7 @@ export const appConfigEffect = Effect.gen(function* () {
     middlewareRedirectUri,
     dcrMasterClientId,
     dcrOriginRedirectUri,
+    logDir,
     hydra,
     redis,
     database,
