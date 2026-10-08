@@ -11,9 +11,10 @@ const {
   getSecret: () => "G6KaOf8aJsLagw566he8yxOTTO3tInKD",
   cookieName: appConfig.csrfTokenName,
   cookieOptions: {
-    sameSite: 'none', // Secure cookie settings
+    // The forms post to this site, so Lax is enough; browsers reject SameSite=None without Secure
+    sameSite: 'lax',
     httpOnly: true,
-    secure: false,
+    secure: appConfig.secure,
     maxAge: 30 * 24 * 60 * 60 * 1000,
   },
   getSessionIdentifier: (req) => {
