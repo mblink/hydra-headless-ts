@@ -52,9 +52,11 @@ npm run build && npm run serve:dev         # run locally against /etc/hydra-head
 
 ## Style
 
-- Prettier: no semicolons, single quotes, 100-column width, trailing commas (es5), as defined in `.prettierrc.json`. The `"prettier": "ory-prettier-styles"` key in `package.json` takes precedence, so plain `npx prettier`/`npm run format` switches to double quotes. Format with `npx prettier --config .prettierrc.json --write <files>`.
+- Prettier (`.prettierrc.json`, the only config): no semicolons, single quotes, 100-column width, trailing commas (es5). CI runs `npm run format:check`.
 - ESM with `module: nodenext`, so relative imports must use the `.js` extension, even from `.ts` files.
-- ESLint enforces import order, `consistent-type-imports` and `no-floating-promises`, and includes `eslint-plugin-functional`.
+- ESLint 10 flat config with `eslint-plugin-import-x` (TypeScript resolver), enforcing import order, `consistent-type-imports` and `no-floating-promises`; also `eslint-plugin-functional`.
+- CI (`.github/workflows/ci.yml`) runs typecheck, lint, format check, tests and build on Node 24 with `npm ci`; `package-lock.json` is committed.
+- The rotating file logger writes to `LOG_DIR` (default `/var/log/hydra-headless-ts`); set `LOG_DIR` when that path isn't writable, e.g. running tests outside the server.
 
 ## Deployment notes
 
