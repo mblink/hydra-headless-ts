@@ -5,6 +5,7 @@ import * as crypto from 'crypto'
 import { Effect } from 'effect'
 import { PKCEStateSchema } from '../domain.js'
 import { type AppError, GoogleAuthError } from '../errors.js'
+import { googleExpiresIn } from './google.js'
 import { RedisService, createOAuthRedisOps } from './redis.js'
 import type { AuthCodeData } from '../domain.js'
 
@@ -24,6 +25,8 @@ interface GoogleOAuthTokens {
     refresh_token?: string | null
     scope?: string | null
     expires_in?: number | null
+    // google-auth-library replaces expires_in with an absolute expiry_date (ms)
+    expiry_date?: number | null
     id_token?: string | null
     token_type?: string | null
   }
@@ -119,7 +122,7 @@ export const processCallback = (
         tokens: {
           access_token: googleTokens.tokens.access_token,
           scope: googleTokens.tokens.scope ?? '',
-          expires_in: googleTokens.tokens.expires_in ?? 3600,
+          expires_in: googleExpiresIn(googleTokens.tokens) ?? 3600,
           token_type: googleTokens.tokens.token_type ?? 'Bearer',
           refresh_token: googleTokens.tokens.refresh_token ?? undefined,
           id_token: googleTokens.tokens.id_token ?? undefined,

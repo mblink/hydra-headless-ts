@@ -10,7 +10,7 @@
  */
 import axios from 'axios'
 import { Effect, pipe, Context, Layer } from 'effect'
-import { OAuth2Client } from 'google-auth-library'
+import { OAuth2Client, type Credentials } from 'google-auth-library'
 import { GoogleTokenResponseSchema, GoogleUserInfoSchema } from '../domain.js'
 import { NetworkError, HttpStatusError, ParseError, GoogleAuthError } from '../errors.js'
 import { validateSchema } from '../validation.js'
@@ -51,6 +51,41 @@ export interface GoogleOAuthService {
  * Google OAuth service tag
  */
 export const GoogleOAuthService = Context.GenericTag<GoogleOAuthService>('GoogleOAuthService')
+
+/**
+ * Seconds until a Google access token expires.
+ *
+ * Google's token endpoint returns a relative `expires_in`, but google-auth-library's
+ * OAuth2Client.getToken() replaces it with an absolute `expiry_date` (ms since epoch)
+ * and deletes `expires_in`. Accept either shape.
+ */
+export const googleExpiresIn = (
+  tokens: { expires_in?: number | null; expiry_date?: number | null },
+  now: number = Date.now()
+): number | undefined => {
+  if (tokens.expires_in != null) {
+    return tokens.expires_in
+  }
+  if (tokens.expiry_date != null) {
+    return Math.max(0, Math.round((tokens.expiry_date - now) / 1000))
+  }
+  return undefined
+}
+
+/**
+ * Convert google-auth-library Credentials back to the token endpoint response shape:
+ * restore `expires_in` from `expiry_date` and drop null fields (Credentials uses null for
+ * absent values, which the schema's optional fields don't accept).
+ */
+export const credentialsToTokenResponse = (
+  credentials: Credentials,
+  now: number = Date.now()
+): Record<string, unknown> => {
+  const { expiry_date: _expiryDate, ...rest } = credentials
+  const fields = Object.fromEntries(Object.entries(rest).filter(([, value]) => value != null))
+  const expiresIn = googleExpiresIn(credentials, now)
+  return expiresIn === undefined ? fields : { ...fields, expires_in: expiresIn }
+}
 
 /**
  * Configuration for Google OAuth
@@ -237,7 +272,7 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
                 code,
                 redirect_uri: redirectUrl,
               })
-              return response.tokens
+              return credentialsToTokenResponse(response.tokens)
             },
             catch: (error) => handleAxiosError(error, 'getTokensFromCode'),
           })

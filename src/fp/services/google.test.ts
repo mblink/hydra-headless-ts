@@ -3,7 +3,12 @@ import { Effect } from 'effect'
 import { OAuth2Client } from 'google-auth-library'
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { HttpStatusError, NetworkError, GoogleAuthError } from '../errors.js'
-import { makeGoogleOAuthService, type GoogleOAuthConfig } from './google.js'
+import {
+  credentialsToTokenResponse,
+  googleExpiresIn,
+  makeGoogleOAuthService,
+  type GoogleOAuthConfig,
+} from './google.js'
 import type { GoogleTokenResponse, RefreshTokenData } from '../domain.js'
 
 // Mock axios
@@ -220,14 +225,17 @@ describe('GoogleOAuthService', () => {
 
   describe('getTokensFromCode', () => {
     it('should exchange code for tokens successfully', async () => {
+      // Shape returned by google-auth-library: expires_in is replaced by expiry_date,
+      // and absent values may be null
       const mockTokenResponse = {
         tokens: {
           access_token: 'access-token-123',
           token_type: 'Bearer',
-          expires_in: 3600,
+          expiry_date: Date.now() + 3599 * 1000,
           scope: 'openid email',
           refresh_token: 'refresh-token-123',
           id_token: 'id-token-123',
+          refresh_token_expires_in: null,
         },
       }
 
@@ -248,6 +256,8 @@ describe('GoogleOAuthService', () => {
 
       expect(result.access_token).toBe('access-token-123')
       expect(result.refresh_token).toBe('refresh-token-123')
+      expect(result.expires_in).toBeGreaterThanOrEqual(3598)
+      expect(result.expires_in).toBeLessThanOrEqual(3599)
       expect(mockOAuth2Client.getToken).toHaveBeenCalledWith({
         code: 'auth-code-123',
         redirect_uri: 'https://auth.example.com/callback',
@@ -456,6 +466,51 @@ describe('GoogleOAuthService', () => {
         'https://custom.example.com/userinfo?alt=json&access_token=token',
         expect.any(Object)
       )
+    })
+  })
+
+  describe('googleExpiresIn', () => {
+    const now = 1_700_000_000_000
+
+    it('prefers a relative expires_in', () => {
+      expect(googleExpiresIn({ expires_in: 3599, expiry_date: now + 10_000 }, now)).toBe(3599)
+    })
+
+    it('derives seconds from an absolute expiry_date', () => {
+      expect(googleExpiresIn({ expiry_date: now + 3_599_400 }, now)).toBe(3599)
+    })
+
+    it('never returns a negative lifetime', () => {
+      expect(googleExpiresIn({ expiry_date: now - 5000 }, now)).toBe(0)
+    })
+
+    it('returns undefined when neither field is present', () => {
+      expect(googleExpiresIn({ expires_in: null, expiry_date: null }, now)).toBeUndefined()
+    })
+  })
+
+  describe('credentialsToTokenResponse', () => {
+    it('restores expires_in, drops expiry_date and null fields', () => {
+      const now = 1_700_000_000_000
+      expect(
+        credentialsToTokenResponse(
+          {
+            access_token: 'a',
+            token_type: 'Bearer',
+            scope: 'openid',
+            expiry_date: now + 60_000,
+            refresh_token: null,
+            id_token: 'i',
+          },
+          now
+        )
+      ).toEqual({
+        access_token: 'a',
+        token_type: 'Bearer',
+        scope: 'openid',
+        id_token: 'i',
+        expires_in: 60,
+      })
     })
   })
 })
