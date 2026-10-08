@@ -10,7 +10,7 @@ import type {
   AcceptOAuth2ConsentRequest,
   OAuth2LogoutRequest,
   OAuth2Api,
-} from '@ory/hydra-client-fetch/dist/index.js'
+} from '@ory/hydra-client-fetch'
 
 // Mock OAuth2Api client
 const createMockOAuth2Api = (): OAuth2Api => {

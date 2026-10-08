@@ -13,7 +13,7 @@ import type {
   AcceptOAuth2ConsentRequest,
   OAuth2LogoutRequest,
 } from '@ory/client-fetch'
-import type { OAuth2Api } from '@ory/hydra-client-fetch/dist/index.js'
+import type { OAuth2Api } from '@ory/hydra-client-fetch'
 
 /**
  * Hydra service interface

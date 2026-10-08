@@ -2,8 +2,7 @@
  * Bootstrap the functional environment using Effect Layers
  * Creates all services with proper dependency injection
  */
-import { Configuration } from '@ory/hydra-client-fetch'
-import { OAuth2Api } from '@ory/hydra-client-fetch/dist/index.js'
+import { Configuration, OAuth2Api } from '@ory/hydra-client-fetch'
 import { Layer } from 'effect'
 import { OAuth2ApiServiceLive, type OAuth2ApiConfig } from '../api/oauth2.js'
 import { createLoggerLayer as createEffectLoggerLayer } from '../logging-effect.js'
