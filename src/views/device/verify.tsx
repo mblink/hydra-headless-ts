@@ -42,6 +42,7 @@ export function DeviceVerify({
   action,
   envXsrfToken,
   csrfToken,
+  challenge,
   error,
   userCode = '',
 }: DeviceVerifyProps): string {
@@ -59,6 +60,7 @@ export function DeviceVerify({
 
         <form action={action} method="POST">
           <input type="hidden" name={envXsrfToken} value={csrfToken} />
+          <input type="hidden" name="challenge" value={challenge} />
           <input
             type="text"
             id="user_code"
