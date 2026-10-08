@@ -140,30 +140,20 @@ app.use((req, res) => {
   res.status(404).send("Sorry, that page doesn't exist!");
 })
 
-if (app.get('env') === 'development') {
-  app.use((err: Error, _req: Request, res: Response) => {
-    res.status(500).send(
-      ErrorPage({
-        message: err.message ?? 'Empty Message',
-        stack: err.stack,
-      })
-    )
-  })
-}
-
-app.use((err: Error, _req: Request, res: Response) => {
-  res.status(500).send(
+// Express only treats middleware with four parameters as an error handler
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  syncLogger.error('ApplicationError', { url: req.originalUrl, message: err.message, stack: err.stack })
+  // Once the response has started, Express's default handler has to close the connection
+  if (res.headersSent) {
+    next(err)
+    return
+  }
+  // Middleware like body-parser sets the status for client errors (400 for malformed JSON)
+  const { status } = err as { status?: unknown }
+  res.status(typeof status === 'number' && status >= 400 && status < 600 ? status : 500).send(
     ErrorPage({
-      message: err.message ?? 'Empty Message',
-    })
-  )
-})
-
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  syncLogger.error('ApplicationError', { stack: err.stack })
-  res.status(500).send(
-    ErrorPage({
-      message: JSON.stringify(err),
+      message: err.message || 'Internal server error',
+      stack: app.get('env') === 'development' ? err.stack : undefined,
     })
   )
 })

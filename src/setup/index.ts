@@ -1,5 +1,6 @@
 import * as crypto from 'crypto';
 import { doubleCsrf } from "csrf-csrf";
+import { appConfig } from "../config.js";
 
 
 
@@ -8,7 +9,7 @@ const {
   generateCsrfToken,        // Helper function to generate a CSRF token
 } = doubleCsrf({
   getSecret: () => "G6KaOf8aJsLagw566he8yxOTTO3tInKD",
-  cookieName: "appConfig.xsrfHeaderName",
+  cookieName: appConfig.csrfTokenName,
   cookieOptions: {
     sameSite: 'none', // Secure cookie settings
     httpOnly: true,
