@@ -5,7 +5,7 @@
 import { type ClientRequest } from 'http'
 import { Effect } from 'effect'
 import express from 'express'
-import { createProxyMiddleware } from 'http-proxy-middleware'
+import { createProxyMiddleware, fixRequestBody } from 'http-proxy-middleware'
 import { Redis } from 'ioredis'
 import { appConfig } from '../config.js'
 import { RedisService, RedisServiceLive, createOAuthRedisOps } from '../fp/services/redis.js'
@@ -42,24 +42,18 @@ const proxyOptions = {
         proxiedUrl: `${appConfig.hydraInternalUrl}${parsed.pathname}`,
         body: req.body,
       })
-      // express.json() has already consumed the request stream, so re-send the parsed body
-      if (req.method !== 'GET' && req.body && Object.keys(req.body).length > 0) {
-        // Hydra expects `contacts` to be an array; some DCR clients send null
-        if (req.body.contacts === null) {
-          syncLogger.info('Setting null contacts to [] in /oauth2/register body')
-          req.body.contacts = []
-        }
-        const bodyData = JSON.stringify(req.body)
-        syncLogger.info('Populating proxy request body for non-GET request', {
-          body: req.body,
-          length: Buffer.byteLength(bodyData),
-        })
-        proxyReq.path = req.originalUrl
-        // Headers must be set before the first write; the client's Content-Length no longer applies
-        proxyReq.setHeader('Content-Type', 'application/json')
-        proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData))
-        proxyReq.write(bodyData)
+      // Hydra expects `contacts` to be an array; some DCR clients send null
+      if (req.body?.contacts === null) {
+        syncLogger.info('Setting null contacts to [] in /oauth2/register body')
+        req.body.contacts = []
       }
+      if (req.method !== 'GET') {
+        proxyReq.path = req.originalUrl
+      }
+      // The body parsers have already consumed the request stream. fixRequestBody re-sends the
+      // parsed body in its original content type (JSON, urlencoded, ...) with a matching
+      // Content-Length, including empty bodies.
+      fixRequestBody(proxyReq, req)
       syncLogger.info('Proxy onProxyReq processing', {
         method: req.method,
         originalUrl: req.originalUrl,
@@ -148,10 +142,13 @@ const proxyOptions = {
  * Validates required OAuth2 parameters and returns 400 for fatal errors
  */
 const enhancedProxyMiddleware = (req: Request, res: Response, next: NextFunction) => {
-  if (req.path === '/oauth2/auth') {
+  // app-fp.ts mounts this under /oauth2/auth and /oauth2/register, which strips the mount
+  // path from req.path, so match on the full original path instead
+  const { pathname } = new URL(req.originalUrl, 'http://localhost')
+  if (pathname === '/oauth2/auth') {
     syncLogger.info('=== OAUTH2 AUTHORIZATION ENDPOINT ===', {
       method: req.method,
-      path: req.path,
+      path: pathname,
       query: req.query,
       session_id: req.session.id,
       session_pkce_key: req.session.pkceKey,
@@ -215,10 +212,10 @@ const enhancedProxyMiddleware = (req: Request, res: Response, next: NextFunction
       scope,
       timestamp: new Date().toISOString(),
     })
-  } else if (req.path.startsWith('/oauth2/register')) {
+  } else if (pathname.startsWith('/oauth2/register')) {
     syncLogger.info('=== OAUTH2 CLIENT REGISTRATION ENDPOINT ===', {
       method: req.method,
-      path: req.path,
+      path: pathname,
       body: req.body,
       headers: {
         'content-type': req.headers['content-type'],
