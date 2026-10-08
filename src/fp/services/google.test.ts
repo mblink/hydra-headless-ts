@@ -17,10 +17,10 @@ vi.mock('axios', () => {
 
 // Mock google-auth-library
 vi.mock('google-auth-library', () => ({
-  OAuth2Client: vi.fn().mockImplementation(() => ({
-    generateAuthUrl: vi.fn(),
-    getToken: vi.fn(),
-  })),
+  OAuth2Client: vi.fn(class {
+    generateAuthUrl = vi.fn()
+    getToken = vi.fn()
+  }),
 }))
 
 describe('GoogleOAuthService', () => {
@@ -172,7 +172,7 @@ describe('GoogleOAuthService', () => {
       }
 
       // Mock the OAuth2Client constructor to return our mock
-      vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client as any)
+      vi.mocked(OAuth2Client).mockImplementation(class { constructor() { return mockOAuth2Client } } as any)
 
       // Recreate service with mocked client
       googleService = makeGoogleOAuthService(mockConfig)
@@ -230,7 +230,7 @@ describe('GoogleOAuthService', () => {
         getToken: vi.fn().mockResolvedValue(mockTokenResponse),
       }
 
-      vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client as any)
+      vi.mocked(OAuth2Client).mockImplementation(class { constructor() { return mockOAuth2Client } } as any)
       googleService = makeGoogleOAuthService(mockConfig)
 
       const program = googleService.getTokensFromCode(
@@ -251,7 +251,7 @@ describe('GoogleOAuthService', () => {
         getToken: vi.fn().mockRejectedValue(new Error('Invalid code')),
       }
 
-      vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client as any)
+      vi.mocked(OAuth2Client).mockImplementation(class { constructor() { return mockOAuth2Client } } as any)
       googleService = makeGoogleOAuthService(mockConfig)
 
       const program = googleService.getTokensFromCode('invalid-code', 'https://example.com')
