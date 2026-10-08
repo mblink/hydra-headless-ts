@@ -18,8 +18,8 @@ export type AppEnvironment = 'local' | 'development' | 'staging' | 'production'
  * Separates public-facing domains from private IPs for internal communication
  */
 export interface DomainConfig {
-  readonly public: string   // Public domain (e.g., auth.staging.yourdomain.org)
-  readonly private: string  // Private IP/host for internal services (e.g., 10.1.1.230)
+  readonly public: string // Public domain (e.g., auth.staging.yourdomain.org)
+  readonly private: string // Private IP/host for internal services (e.g., 10.1.1.230)
 }
 
 /**
@@ -35,10 +35,10 @@ export interface ServiceEndpoint {
  */
 export interface HydraConfig {
   readonly public: {
-    readonly url: string      // Public URL for OAuth2 flows
+    readonly url: string // Public URL for OAuth2 flows
     readonly port: number
   }
-  readonly admin: ServiceEndpoint  // Admin API (internal)
+  readonly admin: ServiceEndpoint // Admin API (internal)
 }
 
 /**
@@ -192,9 +192,7 @@ const hydraConfig = (env: AppEnvironment, domain: DomainConfig): Config.Config<H
       port: Config.integer('HYDRA_PUBLIC_PORT').pipe(Config.withDefault(4444)),
     }),
     admin: Config.all({
-      host: Config.string('HYDRA_ADMIN_HOST').pipe(
-        Config.withDefault(domain.private)
-      ),
+      host: Config.string('HYDRA_ADMIN_HOST').pipe(Config.withDefault(domain.private)),
       port: Config.integer('HYDRA_ADMIN_PORT').pipe(Config.withDefault(4445)),
     }),
   })
@@ -220,7 +218,10 @@ const redisConfig = (env: AppEnvironment, domain: DomainConfig): Config.Config<S
 /**
  * Database configuration
  */
-const databaseConfig = (env: AppEnvironment, domain: DomainConfig): Config.Config<DatabaseConfig> => {
+const databaseConfig = (
+  env: AppEnvironment,
+  domain: DomainConfig
+): Config.Config<DatabaseConfig> => {
   const dsn = Config.string('DSN').pipe(
     Config.withDefault(
       isLocalEnvironment(env)
@@ -245,10 +246,7 @@ const databaseConfig = (env: AppEnvironment, domain: DomainConfig): Config.Confi
  * Google OAuth configuration
  * Required for non-local environments
  */
-const googleConfig = (
-  env: AppEnvironment,
-  baseUrl: string
-): Config.Config<GoogleOAuthConfig> => {
+const googleConfig = (env: AppEnvironment, baseUrl: string): Config.Config<GoogleOAuthConfig> => {
   if (isLocalEnvironment(env)) {
     return Config.succeed({
       clientId: undefined,
@@ -276,14 +274,16 @@ const googleConfig = (
 /**
  * Security configuration
  */
-const securityConfig = (env: AppEnvironment, https: boolean, baseUrl: string): Config.Config<SecurityConfig> => {
+const securityConfig = (
+  env: AppEnvironment,
+  https: boolean,
+  baseUrl: string
+): Config.Config<SecurityConfig> => {
   const isLocal = isLocalEnvironment(env)
 
   return Config.all({
     sessionSecret: Config.string('SESSION_SECRET').pipe(
-      Config.withDefault(
-        isLocal ? 'local-dev-secret' : 'change-me-in-production'
-      )
+      Config.withDefault(isLocal ? 'local-dev-secret' : 'change-me-in-production')
     ),
     cookieSecret: Config.string('COOKIE_SECRET').pipe(
       Config.withDefault('G6KaOf8aJsLagw566he8yxOTTO3tInKD')
@@ -293,27 +293,20 @@ const securityConfig = (env: AppEnvironment, https: boolean, baseUrl: string): C
     sameSite: Config.succeed<SameSiteType>(isLocal ? 'lax' : 'none'),
     httpOnly: Config.succeed(!https),
     secure: Config.succeed(https),
-    mockTlsTermination: Config.boolean('MOCK_TLS_TERMINATION').pipe(
-      Config.withDefault(false)
-    ),
+    mockTlsTermination: Config.boolean('MOCK_TLS_TERMINATION').pipe(Config.withDefault(false)),
     jwtSecret: Config.string('JWT_SECRET').pipe(
       Config.withDefault(
         isLocal ? 'local-dev-jwt-secret-change-in-production' : 'CHANGE_ME_IN_PRODUCTION'
       )
     ),
-    jwtIssuer: Config.string('JWT_ISSUER').pipe(
-      Config.withDefault(baseUrl)
-    ),
-    jwtAudience: Config.string('JWT_AUDIENCE').pipe(
-      Config.withDefault(baseUrl)
-    ),
+    jwtIssuer: Config.string('JWT_ISSUER').pipe(Config.withDefault(baseUrl)),
+    jwtAudience: Config.string('JWT_AUDIENCE').pipe(Config.withDefault(baseUrl)),
     jwtProvider: pipe(
       Config.string('JWT_PROVIDER'),
       Config.withDefault('hydra' as JWTProvider),
       Config.validate({
         message: 'Invalid JWT_PROVIDER, must be: hydra or google',
-        validation: (value): value is JWTProvider =>
-          value === 'hydra' || value === 'google',
+        validation: (value): value is JWTProvider => value === 'hydra' || value === 'google',
       })
     ),
   })

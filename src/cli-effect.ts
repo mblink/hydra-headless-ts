@@ -2,23 +2,19 @@
  * Effect/cli program
  *
  */
-import { type ParseError } from "./fp/errors.js"
-import { Effect, pipe, Context, Schema, Layer, Exit, Logger } from "effect"
+import { type ParseError } from './fp/errors.js'
+import { Effect, pipe, Context, Schema, Layer, Exit, Logger } from 'effect'
 import { OAuth2ApiService, OAuth2ApiServiceLive } from './api/oauth2.js'
-import * as authClient from "./authFlow.js"
+import * as authClient from './authFlow.js'
 import { appConfig } from './config.js'
-import { runPromiseExit } from "effect/Runtime"
-import { adapter } from "effect/Utils"
+import { runPromiseExit } from 'effect/Runtime'
+import { adapter } from 'effect/Utils'
 
 const uuidRegexp = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/i
-const ClientIdV = pipe(
-  Schema.NonEmptyString,
-  Schema.pattern(uuidRegexp)
-)
-
+const ClientIdV = pipe(Schema.NonEmptyString, Schema.pattern(uuidRegexp))
 
 type ClientIdV = Schema.Schema.Type<typeof ClientIdV>
-const parseClientId = (clientId:string): Effect.Effect<string, ParseError, never> => {
+const parseClientId = (clientId: string): Effect.Effect<string, ParseError, never> => {
   return Schema.decode(ClientIdV)(clientId)
 }
 
@@ -30,9 +26,7 @@ const parseClientId = (clientId:string): Effect.Effect<string, ParseError, never
 //     readonly deleteClient(clientId:string): Effect.Effect<OAuth2ApiService>
 //    }
 //   >() {}
-const run = async <A,E>(
-  program: Effect.Effect<A, E>
-): Promise<Exit.Exit<A, E>> => {
+const run = async <A, E>(program: Effect.Effect<A, E>): Promise<Exit.Exit<A, E>> => {
   const layer = setupLayer()
   const prog = Effect.provide(program, layer)
   return Effect.runPromiseExit(prog)
@@ -61,7 +55,6 @@ export const getClient = (clientId: string) => {
 //     client.createClient()
 //   })
 // }
-
 
 /**
  * there is a layer and a program

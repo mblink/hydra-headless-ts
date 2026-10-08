@@ -31,13 +31,8 @@ export class RedisDeleteError extends Data.TaggedError('RedisDeleteError')<{
   error: unknown
 }> {}
 
-
 export type RedisError =
-  | RedisConnectionError
-  | RedisKeyNotFound
-  | RedisParseError
-  | RedisWriteError
-  | RedisDeleteError
+  RedisConnectionError | RedisKeyNotFound | RedisParseError | RedisWriteError | RedisDeleteError
 
 /**
  * HTTP client errors
@@ -95,12 +90,7 @@ export class ExpiredToken extends Data.TaggedError('ExpiredToken')<{
 }> {}
 
 export type OAuthError =
-  | InvalidPKCE
-  | InvalidGrant
-  | InvalidScope
-  | InvalidClient
-  | MissingParameter
-  | ExpiredToken
+  InvalidPKCE | InvalidGrant | InvalidScope | InvalidClient | MissingParameter | ExpiredToken
 
 /**
  * Google OAuth errors
@@ -154,28 +144,18 @@ export class InvalidFormat extends Data.TaggedError('InvalidFormat')<{
   expected: string
   received: unknown
 }> {}
-export class ClientExistsError extends Data.TaggedError("ClientExists")<{
+export class ClientExistsError extends Data.TaggedError('ClientExists')<{
   clientId: string
   clients: string[]
-
 }> {}
-export class ClientNotFound extends Data.TaggedError("ClientExists")<{
+export class ClientNotFound extends Data.TaggedError('ClientExists')<{
   clientId: string
 }> {}
 export type ValidationError =
-  | SchemaValidationError
-  | RequiredFieldMissing
-  | InvalidFormat
-  | ClientExistsError
-  | ClientNotFound
+  SchemaValidationError | RequiredFieldMissing | InvalidFormat | ClientExistsError | ClientNotFound
 
 /**
  * Application-level errors (union of all domain errors)
  */
 export type AppError =
-  | RedisError
-  | HttpError
-  | OAuthError
-  | GoogleOAuthError
-  | SessionError
-  | ValidationError
+  RedisError | HttpError | OAuthError | GoogleOAuthError | SessionError | ValidationError

@@ -35,20 +35,20 @@ const proxyOptions = {
   logger: syncLogger,
   on: {
     proxyReq: (proxyReq: ClientRequest, req: Request, res: Response) => {
-      const parsed = new URL(`${req.protocol  }://${  req.get('host')  }${req.originalUrl}`)
+      const parsed = new URL(`${req.protocol}://${req.get('host')}${req.originalUrl}`)
       syncLogger.info('Checking for Proxy request to Hydra', {
         method: req.method,
         originalUrl: req.originalUrl,
         proxiedUrl: `${appConfig.hydraInternalUrl}${parsed.pathname}`,
         body: req.body,
       })
-      if (req.method !== "GET" && Object.keys(req.body).length > 0) {
+      if (req.method !== 'GET' && Object.keys(req.body).length > 0) {
         syncLogger.info('Populating proxy request body for non-GET request', {
           body: req.body,
           length: JSON.stringify(req.body).length,
         })
-        proxyReq.path = req.originalUrl;
-        proxyReq.write(JSON.stringify(req.body));
+        proxyReq.path = req.originalUrl
+        proxyReq.write(JSON.stringify(req.body))
       }
       syncLogger.info('Proxy onProxyReq processing', {
         method: req.method,
@@ -57,7 +57,9 @@ const proxyOptions = {
       })
       // Special handling for /oauth2/register to fix contacts being null
       if (req.body && typeof req.body === 'object' && req.body?.contacts === null) {
-        syncLogger.info('Modifying /oauth2/register request body to set contacts to empty array instead of null')
+        syncLogger.info(
+          'Modifying /oauth2/register request body to set contacts to empty array instead of null'
+        )
         // Hydra expects contacts to be an array, not null
         req.body.contacts = []
         const bodyData = JSON.stringify(req.body)
@@ -70,19 +72,13 @@ const proxyOptions = {
     },
   },
   pathRewrite: async (path: string, req: Request) => {
-    const parsed = new URL(`${req.protocol  }://${  req.get('host')  }${req.originalUrl}`)
+    const parsed = new URL(`${req.protocol}://${req.get('host')}${req.originalUrl}`)
     if (parsed.pathname === '/oauth2/auth') {
       const sessionId = crypto.randomUUID()
       req.session.pkceKey = req.session.pkceKey ?? sessionId
 
-      const {
-        client_id,
-        redirect_uri,
-        state,
-        code_challenge,
-        code_challenge_method,
-        scope,
-      } = req.query
+      const { client_id, redirect_uri, state, code_challenge, code_challenge_method, scope } =
+        req.query
 
       // Only store PKCE state if we have the required parameters
       if (code_challenge !== undefined && state !== undefined) {
@@ -173,7 +169,15 @@ const enhancedProxyMiddleware = (req: Request, res: Response, next: NextFunction
       timestamp: new Date().toISOString(),
     })
 
-    const { client_id, redirect_uri, response_type, code_challenge, code_challenge_method, scope, state } = req.query
+    const {
+      client_id,
+      redirect_uri,
+      response_type,
+      code_challenge,
+      code_challenge_method,
+      scope,
+      state,
+    } = req.query
 
     // Fatal validation errors that should return 400
     const missingParams: string[] = []

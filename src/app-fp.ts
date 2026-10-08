@@ -103,7 +103,6 @@ app.use(
 app.use('/oauth2/register', proxyMiddleware)
 app.use('/oauth2/auth', proxyMiddleware)
 
-
 app.use(cookieParser(appConfig.security.cookieSecret))
 
 app.use(favicon(path.join(__dirname, '..', 'public', 'favicon.ico')))
@@ -130,7 +129,7 @@ app.use('/validate-token', createValidateTokenRouter(serviceLayer))
 // Error handlers (same as original)
 app.use((req, res, next) => {
   syncLogger.warn('404 in app-fp.ts', { url: req.originalUrl, headers: req.headers })
-  res.status(404).send("Sorry, that page doesn't exist!");
+  res.status(404).send("Sorry, that page doesn't exist!")
 })
 
 if (app.get('env') === 'development') {

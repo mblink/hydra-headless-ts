@@ -1,9 +1,6 @@
 import { Effect } from 'effect'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import {
-  appConfigEffect,
-  loadAppConfigSync,
-} from './config.js'
+import { appConfigEffect, loadAppConfigSync } from './config.js'
 
 describe('fp/config', () => {
   const originalEnv = { ...process.env }

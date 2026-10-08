@@ -6,7 +6,7 @@ import { Effect } from 'effect'
 import { PKCEStateSchema } from '../domain.js'
 import { type AppError, GoogleAuthError } from '../errors.js'
 import { RedisService, createOAuthRedisOps } from './redis.js'
-import type { AuthCodeData } from '../domain.js';
+import type { AuthCodeData } from '../domain.js'
 
 /**
  * Configuration for callback
@@ -136,12 +136,8 @@ export const processCallback = (
     yield* redisOps.setAuthCode(authCode, authData, 300)
 
     // Step 6: Delete PKCE session (cleanup) - catch errors to not fail the flow
-    yield* Effect.catchAll(
-      redisOps.deletePKCEState(pkceKey),
-      (err) =>
-        Effect.logError('Failed to delete PKCE session').pipe(
-          Effect.annotateLogs({ err, pkceKey })
-        )
+    yield* Effect.catchAll(redisOps.deletePKCEState(pkceKey), (err) =>
+      Effect.logError('Failed to delete PKCE session').pipe(Effect.annotateLogs({ err, pkceKey }))
     )
 
     // Step 7: Build redirect URL

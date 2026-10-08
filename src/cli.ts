@@ -16,12 +16,10 @@ import { appConfig } from './config.js'
 import { createLoggerLayer } from './fp/bootstrap.js'
 import { HttpStatusError, NetworkError, type ParseError } from './fp/errors.js'
 
-
 /**
  * Setup OAuth2 API Layer with configuration
  */
 const setupLayer = () => {
-
   const oauth2Config = {
     basePath: appConfig.hydraInternalAdmin,
     headers: {
@@ -29,10 +27,7 @@ const setupLayer = () => {
     },
   }
 
-  return Layer.merge(
-    createLoggerLayer(),
-    OAuth2ApiServiceLive(oauth2Config)
-  )
+  return Layer.merge(createLoggerLayer(), OAuth2ApiServiceLive(oauth2Config))
 }
 
 /**
@@ -47,31 +42,31 @@ const runEffect = async <A, E>(
 }
 
 interface FormattedHttpStatusError {
-  type: 'HttpStatusError';
-  status: number;
-  statusText: string;
-  body: unknown;
+  type: 'HttpStatusError'
+  status: number
+  statusText: string
+  body: unknown
 }
 
 interface FormattedNetworkError {
-  type: 'NetworkError';
-  message: string;
-  cause: unknown;
+  type: 'NetworkError'
+  message: string
+  cause: unknown
 }
 
 interface FormattedUnexpectedError {
-  type: 'UnexpectedError';
-  name: string;
-  message: string;
-  stack?: string;
+  type: 'UnexpectedError'
+  name: string
+  message: string
+  stack?: string
 }
 
 interface GenericError {
-  error: string;
+  error: string
 }
 
 interface GenericDefect {
-  defect: string;
+  defect: string
 }
 
 type FormattedError =
@@ -79,7 +74,7 @@ type FormattedError =
   | FormattedNetworkError
   | FormattedUnexpectedError
   | GenericError
-  | GenericDefect;
+  | GenericDefect
 
 /**
  * Pretty print an error cause
@@ -124,19 +119,21 @@ const formatError = (cause: Cause.Cause<unknown>): string => {
 
   const errors = [
     ...Array.from(failures).map(formatFailure),
-    ...Array.from(defects).map(formatDefect)
+    ...Array.from(defects).map(formatDefect),
   ]
 
   if (errors.length === 0) {
-    return JSON.stringify({
-      error: 'Unknown error',
-      cause: Cause.pretty(cause)
-    }, null, 2)
+    return JSON.stringify(
+      {
+        error: 'Unknown error',
+        cause: Cause.pretty(cause),
+      },
+      null,
+      2
+    )
   }
 
-  return errors.length === 1
-    ? JSON.stringify(errors[0], null, 2)
-    : JSON.stringify(errors, null, 2)
+  return errors.length === 1 ? JSON.stringify(errors[0], null, 2) : JSON.stringify(errors, null, 2)
 }
 
 /**
@@ -156,14 +153,11 @@ const uuidRegexp = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}
 /**
  * Command handlers
  */
-type CommandHandler = (...args: string[]) => Promise<void>;
-const ClientIdV = pipe(
-  Schema.NonEmptyString,
-  Schema.pattern(uuidRegexp)
-)
+type CommandHandler = (...args: string[]) => Promise<void>
+const ClientIdV = pipe(Schema.NonEmptyString, Schema.pattern(uuidRegexp))
 
 type ClientIdV = Schema.Schema.Type<typeof ClientIdV>
-const parseClientId = (clientId:string): Effect.Effect<string, ParseError, never> => {
+const parseClientId = (clientId: string): Effect.Effect<string, ParseError, never> => {
   return Schema.decode(ClientIdV)(clientId)
 }
 
@@ -188,13 +182,14 @@ const commands: Record<string, CommandHandler> = {
   },
 
   'safe-get-client': async (clientId: string) => {
-
-    const program = parseClientId(clientId).pipe(
-      Effect.andThen((validated) => {
-        Effect.logInfo(`Safely getting client: ${clientId}...`),
-        Effect.map(() => authFlow.safeGetClient(validated))
-      })
-    ).pipe(Effect.provide(Logger.json))
+    const program = parseClientId(clientId)
+      .pipe(
+        Effect.andThen((validated) => {
+          ;(Effect.logInfo(`Safely getting client: ${clientId}...`),
+            Effect.map(() => authFlow.safeGetClient(validated)))
+        })
+      )
+      .pipe(Effect.provide(Logger.json))
     const exit = await runEffect(program)
     printResult(exit)
   },
@@ -223,7 +218,7 @@ const commands: Record<string, CommandHandler> = {
     printResult(exit)
   },
 
-  'help': async () => {
+  help: async () => {
     Effect.logInfo(`
 CLI for running Effect functions from authFlow
 
@@ -261,7 +256,7 @@ Commands:
     ].join('\n')
     Effect.logError(helpText)
 `)
-  }
+  },
 }
 
 /**

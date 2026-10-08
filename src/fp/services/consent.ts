@@ -18,10 +18,7 @@ export interface ConsentConfig {
 /**
  * Build Google OAuth URL
  */
-const buildGoogleAuthUrl = (
-  config: ConsentConfig,
-  state: string
-): string => {
+const buildGoogleAuthUrl = (config: ConsentConfig, state: string): string => {
   const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth')
   googleAuthUrl.searchParams.set('client_id', config.googleClientId)
   googleAuthUrl.searchParams.set('redirect_uri', config.middlewareRedirectUri)
@@ -48,9 +45,7 @@ export const processConsent = (
     // Access services
     const hydra = yield* HydraService
 
-    yield* Effect.logInfo('Processing consent challenge').pipe(
-      Effect.annotateLogs({ challenge })
-    )
+    yield* Effect.logInfo('Processing consent challenge').pipe(Effect.annotateLogs({ challenge }))
 
     // Step 1: Get consent info
     const consentInfo = yield* hydra.getConsentRequest(challenge)

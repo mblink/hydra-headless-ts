@@ -1,8 +1,8 @@
-import { Pool } from 'pg';
+import { Pool } from 'pg'
 const connString = process.env.DSN
 
 const pool = new Pool({
-  connectionString: connString
-});
+  connectionString: connString,
+})
 
-export default pool;
+export default pool

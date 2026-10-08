@@ -4,7 +4,7 @@
  */
 import { Effect, Context, Layer } from 'effect'
 import { HttpStatusError, NetworkError } from '../fp/errors.js'
-import type { HttpError} from '../fp/errors.js';
+import type { HttpError } from '../fp/errors.js'
 import type {
   AcceptDeviceUserCodeRequest,
   AcceptOAuth2ConsentRequest,
@@ -92,9 +92,7 @@ export interface OAuth2ApiService {
     body?: AcceptOAuth2LoginRequest
   ) => Effect.Effect<OAuth2RedirectTo, HttpError>
 
-  readonly getLoginRequest: (
-    loginChallenge: string
-  ) => Effect.Effect<OAuth2LoginRequest, HttpError>
+  readonly getLoginRequest: (loginChallenge: string) => Effect.Effect<OAuth2LoginRequest, HttpError>
 
   readonly rejectLoginRequest: (
     loginChallenge: string,
@@ -110,9 +108,7 @@ export interface OAuth2ApiService {
     logoutChallenge: string
   ) => Effect.Effect<OAuth2LogoutRequest, HttpError>
 
-  readonly rejectLogoutRequest: (
-    logoutChallenge: string
-  ) => Effect.Effect<void, HttpError>
+  readonly rejectLogoutRequest: (logoutChallenge: string) => Effect.Effect<void, HttpError>
 
   // Device flow
   readonly acceptUserCodeRequest: (
@@ -125,9 +121,7 @@ export interface OAuth2ApiService {
   readonly performDeviceVerificationFlow: () => Effect.Effect<ErrorOAuth2, HttpError>
 
   // Client management
-  readonly createClient: (
-    client: OAuth2Client
-  ) => Effect.Effect<OAuth2Client, HttpError>
+  readonly createClient: (client: OAuth2Client) => Effect.Effect<OAuth2Client, HttpError>
 
   readonly getClient: (id: string) => Effect.Effect<OAuth2Client, HttpError>
 
@@ -143,10 +137,7 @@ export interface OAuth2ApiService {
     client: OAuth2Client
   ) => Effect.Effect<OAuth2Client, HttpError>
 
-  readonly patchClient: (
-    id: string,
-    patches: JsonPatch[]
-  ) => Effect.Effect<OAuth2Client, HttpError>
+  readonly patchClient: (id: string, patches: JsonPatch[]) => Effect.Effect<OAuth2Client, HttpError>
 
   readonly deleteClient: (id: string) => Effect.Effect<void, HttpError>
 
@@ -212,9 +203,7 @@ export interface OAuth2ApiService {
     issuer?: string
   }) => Effect.Effect<TrustedOAuth2JwtGrantIssuer[], HttpError>
 
-  readonly deleteTrustedJwtGrantIssuer: (
-    id: string
-  ) => Effect.Effect<void, HttpError>
+  readonly deleteTrustedJwtGrantIssuer: (id: string) => Effect.Effect<void, HttpError>
 
   // Authorization endpoints
   readonly authorize: () => Effect.Effect<ErrorOAuth2, HttpError>
@@ -234,9 +223,7 @@ export const makeOAuth2ApiService = (config: OAuth2ApiConfig): OAuth2ApiService 
   /**
    * Helper to build headers with auth token
    */
-  const buildHeaders = async (
-    contentType?: string
-  ): Promise<Record<string, string>> => {
+  const buildHeaders = async (contentType?: string): Promise<Record<string, string>> => {
     const headers: Record<string, string> = {
       ...config.headers,
     }
@@ -416,12 +403,10 @@ export const makeOAuth2ApiService = (config: OAuth2ApiConfig): OAuth2ApiService 
 
     deviceFlow: () => fetchJSON<DeviceAuthorization>('POST', '/oauth2/device/auth'),
 
-    performDeviceVerificationFlow: () =>
-      fetchJSON<ErrorOAuth2>('GET', '/oauth2/device/verify'),
+    performDeviceVerificationFlow: () => fetchJSON<ErrorOAuth2>('GET', '/oauth2/device/verify'),
 
     // Client management
-    createClient: (client) =>
-      fetchJSON<OAuth2Client>('POST', '/admin/clients', { body: client }),
+    createClient: (client) => fetchJSON<OAuth2Client>('POST', '/admin/clients', { body: client }),
 
     getClient: (id) => fetchJSON<OAuth2Client>('GET', `/admin/clients/${id}`),
 
@@ -513,32 +498,23 @@ export const makeOAuth2ApiService = (config: OAuth2ApiConfig): OAuth2ApiService 
 
     // JWT Grant issuers
     trustJwtGrantIssuer: (issuer) =>
-      fetchJSON<TrustedOAuth2JwtGrantIssuer>(
-        'POST',
-        '/admin/trust/grants/jwt-bearer/issuers',
-        { body: issuer }
-      ),
+      fetchJSON<TrustedOAuth2JwtGrantIssuer>('POST', '/admin/trust/grants/jwt-bearer/issuers', {
+        body: issuer,
+      }),
 
     getTrustedJwtGrantIssuer: (id) =>
-      fetchJSON<TrustedOAuth2JwtGrantIssuer>(
-        'GET',
-        `/admin/trust/grants/jwt-bearer/issuers/${id}`
-      ),
+      fetchJSON<TrustedOAuth2JwtGrantIssuer>('GET', `/admin/trust/grants/jwt-bearer/issuers/${id}`),
 
     listTrustedJwtGrantIssuers: (params) =>
-      fetchJSON<TrustedOAuth2JwtGrantIssuer[]>(
-        'GET',
-        '/admin/trust/grants/jwt-bearer/issuers',
-        {
-          query: params
-            ? {
-                page_size: params.pageSize,
-                page_token: params.pageToken,
-                issuer: params.issuer,
-              }
-            : undefined,
-        }
-      ),
+      fetchJSON<TrustedOAuth2JwtGrantIssuer[]>('GET', '/admin/trust/grants/jwt-bearer/issuers', {
+        query: params
+          ? {
+              page_size: params.pageSize,
+              page_token: params.pageToken,
+              issuer: params.issuer,
+            }
+          : undefined,
+      }),
 
     deleteTrustedJwtGrantIssuer: (id) =>
       fetchVoid('DELETE', `/admin/trust/grants/jwt-bearer/issuers/${id}`),

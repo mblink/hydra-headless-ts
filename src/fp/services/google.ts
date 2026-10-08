@@ -11,18 +11,12 @@
 import axios from 'axios'
 import { Effect, pipe, Context, Layer } from 'effect'
 import { OAuth2Client } from 'google-auth-library'
-import {
-  GoogleTokenResponseSchema,
-  GoogleUserInfoSchema
-} from '../domain.js'
+import { GoogleTokenResponseSchema, GoogleUserInfoSchema } from '../domain.js'
 import { NetworkError, HttpStatusError, ParseError, GoogleAuthError } from '../errors.js'
 import { validateSchema } from '../validation.js'
-import type {
-  GoogleTokenResponse,
-  GoogleUserInfoResponse,
-  RefreshTokenData} from '../domain.js';
-import type { HttpError} from '../errors.js';
-import type { AxiosError } from 'axios';
+import type { GoogleTokenResponse, GoogleUserInfoResponse, RefreshTokenData } from '../domain.js'
+import type { HttpError } from '../errors.js'
+import type { AxiosError } from 'axios'
 
 /**
  * Google OAuth service interface
@@ -72,18 +66,19 @@ export interface GoogleOAuthConfig {
 /**
  * Create Google OAuth service implementation
  */
-export const makeGoogleOAuthService = (
-  config: GoogleOAuthConfig
-): GoogleOAuthService => {
+export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthService => {
   const TOKEN_ENDPOINT = config.tokenEndpoint ?? 'https://oauth2.googleapis.com/token'
-  const USER_INFO_ENDPOINT = config.userInfoEndpoint ?? 'https://www.googleapis.com/oauth2/v2/userinfo'
+  const USER_INFO_ENDPOINT =
+    config.userInfoEndpoint ?? 'https://www.googleapis.com/oauth2/v2/userinfo'
 
   // Create OAuth2Client if redirectUri is provided (for auth flow operations)
-  const oauth2Client = config.redirectUri ? new OAuth2Client({
-    clientId: config.clientId,
-    clientSecret: config.clientSecret,
-    redirectUri: config.redirectUri,
-  }) : null
+  const oauth2Client = config.redirectUri
+    ? new OAuth2Client({
+        clientId: config.clientId,
+        clientSecret: config.clientSecret,
+        redirectUri: config.redirectUri,
+      })
+    : null
 
   /**
    * Helper to handle axios errors
@@ -128,7 +123,9 @@ export const makeGoogleOAuthService = (
         Effect.logInfo('=== GOOGLE refreshToken CALLED ===').pipe(
           Effect.annotateLogs({
             has_refresh_token: !!tokenData.refresh_token,
-            refresh_token_preview: tokenData.refresh_token ? `${tokenData.refresh_token.substring(0, 20)}...` : 'none',
+            refresh_token_preview: tokenData.refresh_token
+              ? `${tokenData.refresh_token.substring(0, 20)}...`
+              : 'none',
             client_id: tokenData.client_id,
             scope: tokenData.scope,
             endpoint: TOKEN_ENDPOINT,
@@ -188,13 +185,12 @@ export const makeGoogleOAuthService = (
             })
           )
         ),
-        Effect.mapError(
-          (error): HttpError | GoogleAuthError =>
-            error._tag === 'SchemaValidationError'
-              ? new ParseError({
-                  message: `Failed to parse Google token response: ${error.errors.join(', ')}`,
-                })
-              : error
+        Effect.mapError((error): HttpError | GoogleAuthError =>
+          error._tag === 'SchemaValidationError'
+            ? new ParseError({
+                message: `Failed to parse Google token response: ${error.errors.join(', ')}`,
+              })
+            : error
         )
       ),
 
@@ -280,13 +276,12 @@ export const makeGoogleOAuthService = (
             })
           )
         ),
-        Effect.mapError(
-          (error): HttpError | GoogleAuthError =>
-            error._tag === 'SchemaValidationError'
-              ? new ParseError({
-                  message: `Failed to parse Google token response: ${error.errors.join(', ')}`,
-                })
-              : error
+        Effect.mapError((error): HttpError | GoogleAuthError =>
+          error._tag === 'SchemaValidationError'
+            ? new ParseError({
+                message: `Failed to parse Google token response: ${error.errors.join(', ')}`,
+              })
+            : error
         )
       ),
 
@@ -313,13 +308,12 @@ export const makeGoogleOAuthService = (
           catch: (error) => handleAxiosError(error, 'refreshAccessToken'),
         }),
         Effect.flatMap((data) => validateSchema(GoogleTokenResponseSchema, data)),
-        Effect.mapError(
-          (error): HttpError | GoogleAuthError =>
-            error._tag === 'SchemaValidationError'
-              ? new ParseError({
-                  message: `Failed to parse Google token response: ${error.errors.join(', ')}`,
-                })
-              : error
+        Effect.mapError((error): HttpError | GoogleAuthError =>
+          error._tag === 'SchemaValidationError'
+            ? new ParseError({
+                message: `Failed to parse Google token response: ${error.errors.join(', ')}`,
+              })
+            : error
         )
       ),
 
@@ -378,13 +372,12 @@ export const makeGoogleOAuthService = (
             })
           )
         ),
-        Effect.mapError(
-          (error): HttpError | GoogleAuthError =>
-            error._tag === 'SchemaValidationError'
-              ? new ParseError({
-                  message: `Failed to parse Google user info response: ${error.errors.join(', ')}`,
-                })
-              : error
+        Effect.mapError((error): HttpError | GoogleAuthError =>
+          error._tag === 'SchemaValidationError'
+            ? new ParseError({
+                message: `Failed to parse Google user info response: ${error.errors.join(', ')}`,
+              })
+            : error
         )
       ),
   }

@@ -11,7 +11,7 @@ import {
   RedisWriteError,
   RedisDeleteError,
   type SchemaValidationError,
-  type RedisError
+  type RedisError,
 } from '../errors.js'
 import { validateSchema } from '../validation.js'
 import type { Redis } from 'ioredis'
@@ -51,11 +51,13 @@ export const makeRedisService = (client: Redis): RedisService => ({
   get: (key: string) =>
     Effect.tryPromise({
       try: () => client.get(key),
-      catch: (error) =>
-        new RedisConnectionError({ message: `Failed to get key ${key}: ${error}` }),
+      catch: (error) => new RedisConnectionError({ message: `Failed to get key ${key}: ${error}` }),
     }),
 
-  getJSON: <A, I>(key: string, schema: Schema.Schema<A, I, never>): Effect.Effect<A, RedisError | SchemaValidationError> =>
+  getJSON: <A, I>(
+    key: string,
+    schema: Schema.Schema<A, I, never>
+  ): Effect.Effect<A, RedisError | SchemaValidationError> =>
     pipe(
       Effect.tryPromise({
         try: () => client.get(key),
@@ -142,8 +144,7 @@ export const createOAuthRedisOps = (service: RedisService) => {
     setPKCEState: (sessionId: string, state: unknown, ttlSeconds?: number) =>
       service.setJSON(`${PKCE_PREFIX}${sessionId}`, state, ttlSeconds),
 
-    deletePKCEState: (sessionId: string) =>
-      service.del(`${PKCE_PREFIX}${sessionId}`),
+    deletePKCEState: (sessionId: string) => service.del(`${PKCE_PREFIX}${sessionId}`),
 
     getAuthCode: <A, I>(code: string, schema: Schema.Schema<A, I, never>) =>
       service.getJSON(`${AUTH_CODE_PREFIX}${code}`, schema),
@@ -159,8 +160,7 @@ export const createOAuthRedisOps = (service: RedisService) => {
     setAuthCodeState: (code: string, state: unknown, ttlSeconds: number = 300) =>
       service.setJSON(`${AUTH_CODE_STATE_PREFIX}${code}`, state, ttlSeconds),
 
-    deleteAuthCodeState: (code: string) =>
-      service.del(`${AUTH_CODE_STATE_PREFIX}${code}`),
+    deleteAuthCodeState: (code: string) => service.del(`${AUTH_CODE_STATE_PREFIX}${code}`),
 
     // Legacy refresh token operations (for backward compatibility)
     getRefreshToken: <A, I>(refreshToken: string, schema: Schema.Schema<A, I, never>) =>
@@ -186,8 +186,7 @@ export const createOAuthRedisOps = (service: RedisService) => {
       ttlSeconds: number = 60 * 60 * 24 * 30 // 30 days default
     ) => service.setJSON(`${GOOGLE_TOKEN_PREFIX}${jti}`, data, ttlSeconds),
 
-    deleteGoogleToken: (jti: string) =>
-      service.del(`${GOOGLE_TOKEN_PREFIX}${jti}`),
+    deleteGoogleToken: (jti: string) => service.del(`${GOOGLE_TOKEN_PREFIX}${jti}`),
 
     // Store/retrieve JWT refresh token data
     getJWTRefresh: <A, I>(refreshToken: string, schema: Schema.Schema<A, I, never>) =>
@@ -199,7 +198,6 @@ export const createOAuthRedisOps = (service: RedisService) => {
       ttlSeconds: number = 60 * 60 * 24 * 90 // 90 days default
     ) => service.setJSON(`${JWT_REFRESH_PREFIX}${refreshToken}`, data, ttlSeconds),
 
-    deleteJWTRefresh: (refreshToken: string) =>
-      service.del(`${JWT_REFRESH_PREFIX}${refreshToken}`),
+    deleteJWTRefresh: (refreshToken: string) => service.del(`${JWT_REFRESH_PREFIX}${refreshToken}`),
   }
 }

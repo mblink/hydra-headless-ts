@@ -4,14 +4,7 @@
  * Fetches signing keys from Hydra's JWKS endpoint
  */
 import { Effect, Context, Layer } from 'effect'
-import {
-  SignJWT,
-  jwtVerify,
-  importJWK,
-  createRemoteJWKSet,
-  type JWTPayload,
-  type JWK,
-} from 'jose'
+import { SignJWT, jwtVerify, importJWK, createRemoteJWKSet, type JWTPayload, type JWK } from 'jose'
 import axios from 'axios'
 import crypto from 'crypto'
 import { ParseError, NetworkError, type AppError } from '../errors.js'
@@ -161,7 +154,6 @@ const fetchHydraKey = async (hydraAdminUrl: string): Promise<HydraKey> => {
   }
 }
 
-
 /**
  * Create JWT Service implementation
  */
@@ -265,9 +257,10 @@ export const makeJWTService = (config: JWTConfig): JWTService => {
       Effect.tryPromise({
         try: async () => {
           // Use provider's public JWKS for verification
-          const jwksUrl = config.provider === 'google'
-            ? 'https://www.googleapis.com/oauth2/v3/certs'
-            : `${config.hydraPublicUrl}/.well-known/jwks.json`
+          const jwksUrl =
+            config.provider === 'google'
+              ? 'https://www.googleapis.com/oauth2/v3/certs'
+              : `${config.hydraPublicUrl}/.well-known/jwks.json`
 
           const JWKS = createRemoteJWKSet(new URL(jwksUrl))
 
@@ -289,16 +282,16 @@ export const makeJWTService = (config: JWTConfig): JWTService => {
           }),
       }),
 
-    generateJti: () =>
-      Effect.sync(() => crypto.randomBytes(16).toString('base64url')),
+    generateJti: () => Effect.sync(() => crypto.randomBytes(16).toString('base64url')),
 
     getJWKS: () =>
       Effect.tryPromise({
         try: async () => {
           // Return provider's public JWKS URL for clients to use
-          const jwksUrl = config.provider === 'google'
-            ? 'https://www.googleapis.com/oauth2/v3/certs'
-            : `${config.hydraPublicUrl}/.well-known/jwks.json`
+          const jwksUrl =
+            config.provider === 'google'
+              ? 'https://www.googleapis.com/oauth2/v3/certs'
+              : `${config.hydraPublicUrl}/.well-known/jwks.json`
 
           const response = await axios.get<JWKS>(jwksUrl)
 

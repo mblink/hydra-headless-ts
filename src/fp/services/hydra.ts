@@ -1,10 +1,10 @@
-  /**
+/**
  * Hydra Admin API service using Effect
  * Wraps all Hydra OAuth2 API operations
  */
 import { Effect, Context, Layer } from 'effect'
 import { HttpStatusError, NetworkError } from '../errors.js'
-import type { HttpError} from '../errors.js';
+import type { HttpError } from '../errors.js'
 import type {
   OAuth2LoginRequest,
   AcceptOAuth2LoginRequest,
@@ -19,31 +19,23 @@ import type { OAuth2Api } from '@ory/hydra-client-fetch'
  * Hydra service interface
  */
 export interface HydraService {
-  readonly getLoginRequest: (
-    challenge: string
-  ) => Effect.Effect<OAuth2LoginRequest, HttpError>
+  readonly getLoginRequest: (challenge: string) => Effect.Effect<OAuth2LoginRequest, HttpError>
 
   readonly acceptLoginRequest: (
     challenge: string,
     body: AcceptOAuth2LoginRequest
   ) => Effect.Effect<OAuth2RedirectTo, HttpError>
 
-  readonly getConsentRequest: (
-    challenge: string
-  ) => Effect.Effect<OAuth2ConsentRequest, HttpError>
+  readonly getConsentRequest: (challenge: string) => Effect.Effect<OAuth2ConsentRequest, HttpError>
 
   readonly acceptConsentRequest: (
     challenge: string,
     body: AcceptOAuth2ConsentRequest
   ) => Effect.Effect<OAuth2RedirectTo, HttpError>
 
-  readonly getLogoutRequest: (
-    challenge: string
-  ) => Effect.Effect<OAuth2LogoutRequest, HttpError>
+  readonly getLogoutRequest: (challenge: string) => Effect.Effect<OAuth2LogoutRequest, HttpError>
 
-  readonly acceptLogoutRequest: (
-    challenge: string
-  ) => Effect.Effect<OAuth2RedirectTo, HttpError>
+  readonly acceptLogoutRequest: (challenge: string) => Effect.Effect<OAuth2RedirectTo, HttpError>
 
   readonly rejectLogoutRequest: (challenge: string) => Effect.Effect<void, HttpError>
 }
@@ -128,12 +120,9 @@ export const makeHydraService = (client: OAuth2Api): HydraService => {
       ),
 
     rejectLogoutRequest: (challenge: string) =>
-      wrapHydraCall(
-        async () => {
-          await client.rejectOAuth2LogoutRequest({ logoutChallenge: challenge })
-        },
-        'rejectLogoutRequest'
-      ),
+      wrapHydraCall(async () => {
+        await client.rejectOAuth2LogoutRequest({ logoutChallenge: challenge })
+      }, 'rejectLogoutRequest'),
   }
 }
 

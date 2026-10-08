@@ -2,13 +2,13 @@
  * OAuth2 API service setup
  * Provides Effect-based OAuth2ApiService for Hydra operations
  */
-import { makeOAuth2ApiService, OAuth2ApiServiceLive } from "../api/oauth2.js";
-import { appConfig } from "../config.js";
+import { makeOAuth2ApiService, OAuth2ApiServiceLive } from '../api/oauth2.js'
+import { appConfig } from '../config.js'
 
 // Create headers for OAuth2 API
 const headers: Record<string, string> = {}
 if (process.env.MOCK_TLS_TERMINATION) {
-  headers["X-Forwarded-Proto"] = "https"
+  headers['X-Forwarded-Proto'] = 'https'
 }
 
 /**
