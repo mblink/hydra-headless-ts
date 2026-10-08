@@ -9,6 +9,7 @@ import { Effect, pipe } from 'effect'
 import { OAuth2ApiLayer } from '../setup/hydra.js'
 import { OAuth2ApiService } from './oauth2.js'
 import type { HttpError } from '../fp/errors.js'
+import type { OAuth2Client } from '@ory/client-fetch'
 
 /**
  * Example 1: Get a login request
@@ -138,7 +139,7 @@ export const introspectAndValidate = (token: string, requiredScope: string) =>
 /**
  * Example 8: Client management with retry logic
  */
-export const createClientWithRetry = (client: any) =>
+export const createClientWithRetry = (client: OAuth2Client) =>
   pipe(
     OAuth2ApiService,
     Effect.flatMap((api) => api.createClient(client)),

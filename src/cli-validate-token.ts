@@ -4,12 +4,11 @@
  * Usage: npm run validate-token <jwt-token>
  * Or: ts-node src/cli-validate-token.ts <jwt-token>
  */
+import axios from 'axios'
 import { Effect } from 'effect'
 import { decodeJwt, decodeProtectedHeader } from 'jose'
-import axios from 'axios'
 import { appConfig } from './config.js'
 import { JWTService, JWTServiceLive, type JWKS } from './fp/services/jwt.js'
-import { syncLogger } from './logging-effect.js'
 
 // Get token from command line
 const token = process.argv[2]

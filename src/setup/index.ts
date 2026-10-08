@@ -1,6 +1,5 @@
 import * as crypto from 'crypto';
 import { doubleCsrf } from "csrf-csrf";
-import { appConfig } from "../config.js";
 
 
 

@@ -5,6 +5,7 @@
 import connectPgSimple from 'connect-pg-simple'
 import session from 'express-session'
 import { loadAppConfigSync, getHydraAdminUrl, getHydraInternalUrl } from './fp/config.js'
+import { syncLogger } from './logging-effect.js'
 
 /**
  * Load configuration from environment
@@ -70,7 +71,6 @@ export const PgStore = connectPgSimple(session)
 /**
  * Log loaded configuration (without secrets)
  */
-import { syncLogger } from './logging-effect.js'
 syncLogger.info('Configuration loaded', {
   environment: appConfig.environment,
   domain: appConfig.domain,

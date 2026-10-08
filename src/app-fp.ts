@@ -135,7 +135,7 @@ app.use('/.well-known/oauth-authorization-server', createDiscoveryRouter())
 app.use('/authz', createAuthzRouter(serviceLayer))
 
 // Error handlers (same as original)
-app.use((req, res, next) => {
+app.use((req, res) => {
   syncLogger.warn('404 in app-fp.ts', { url: req.originalUrl, headers: req.headers })
   res.status(404).send("Sorry, that page doesn't exist!");
 })

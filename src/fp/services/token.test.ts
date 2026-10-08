@@ -1,12 +1,12 @@
 import { Effect, Either, Layer } from 'effect'
-import { describe, it, expect, vi, beforeEach, assert } from 'vitest'
 import { decodeJwt } from 'jose'
+import { describe, it, expect, vi, beforeEach, assert } from 'vitest'
+import { InvalidGrant, UnauthorizedEmail, ParseError } from '../errors.js'
 import { isEmailAllowed } from './emailAllowlist.js'
-import { processRefreshTokenGrant, processAuthCodeGrant } from './token.js'
-import { RedisService } from './redis.js'
 import { GoogleOAuthService } from './google.js'
 import { JWTService } from './jwt.js'
-import { InvalidGrant, UnauthorizedEmail, ParseError } from '../errors.js'
+import { RedisService } from './redis.js'
+import { processRefreshTokenGrant, processAuthCodeGrant } from './token.js'
 import type { JWTRefreshData, GoogleTokenData, AuthCodeData, PKCEState } from '../domain.js'
 
 vi.mock('./emailAllowlist.js', () => ({ isEmailAllowed: vi.fn() }))

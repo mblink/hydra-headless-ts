@@ -67,7 +67,9 @@ export const makeHydraService = (client: OAuth2Api): HydraService => {
     Effect.tryPromise({
       try: operation,
       catch: (error): HttpError => {
-        const err = error as any
+        const err = error as {
+          response?: { status?: number; statusText?: string; data?: unknown }
+        }
         if (err.response) {
           return new HttpStatusError({
             status: err.response.status ?? 500,

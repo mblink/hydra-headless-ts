@@ -1,9 +1,9 @@
 import { Effect, Either, Layer } from 'effect'
 import { describe, it, expect, vi, beforeEach, assert } from 'vitest'
-import { isEmailAllowed } from './emailAllowlist.js'
-import { processCallback, type GoogleOAuthClient } from './callback.js'
-import { RedisService } from './redis.js'
 import { GoogleAuthError, InvalidState, UnauthorizedEmail } from '../errors.js'
+import { processCallback, type GoogleOAuthClient } from './callback.js'
+import { isEmailAllowed } from './emailAllowlist.js'
+import { RedisService } from './redis.js'
 import type { PKCEState } from '../domain.js'
 
 vi.mock('./emailAllowlist.js', () => ({ isEmailAllowed: vi.fn() }))

@@ -54,7 +54,7 @@ const proxyOptions = {
       if (!('status' in res) || (res as Response).headersSent) return
       ;(res as Response).status(502).json({ error: 'proxy_error', message: 'Upstream service unavailable' })
     },
-    proxyReq: (proxyReq: ClientRequest, req: Request, res: Response) => {
+    proxyReq: (proxyReq: ClientRequest, req: Request, _res: Response) => {
       const parsed = new URL(`${req.protocol  }://${  req.get('host')  }${req.originalUrl}`)
       syncLogger.info('Checking for Proxy request to Hydra', {
         method: req.method,
@@ -341,7 +341,7 @@ const enhancedProxyMiddleware = async (req: Request, res: Response, next: NextFu
     // Log PKCE parameters
     syncLogger.info('OAUTH2 AUTH: PKCE Parameters', {
       has_code_challenge: !!code_challenge,
-      code_challenge_method: code_challenge_method || 'not provided',
+      code_challenge_method: code_challenge_method ?? 'not provided',
       has_state: !!state,
       scope,
       timestamp: new Date().toISOString(),

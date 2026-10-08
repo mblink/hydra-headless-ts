@@ -2,13 +2,9 @@
  * Effect/cli program
  *
  */
+import { Effect, pipe, Schema } from "effect"
+import { OAuth2ApiService } from './api/oauth2.js'
 import { type ParseError } from "./fp/errors.js"
-import { Effect, pipe, Context, Schema, Layer, Exit, Logger } from "effect"
-import { OAuth2ApiService, OAuth2ApiServiceLive } from './api/oauth2.js'
-import * as authClient from "./authFlow.js"
-import { appConfig } from './config.js'
-import { runPromiseExit } from "effect/Runtime"
-import { adapter } from "effect/Utils"
 
 const uuidRegexp = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/i
 const ClientIdV = pipe(
@@ -30,22 +26,6 @@ const parseClientId = (clientId:string): Effect.Effect<string, ParseError, never
 //     readonly deleteClient(clientId:string): Effect.Effect<OAuth2ApiService>
 //    }
 //   >() {}
-const run = async <A,E>(
-  program: Effect.Effect<A, E>
-): Promise<Exit.Exit<A, E>> => {
-  const layer = setupLayer()
-  const prog = Effect.provide(program, layer)
-  return Effect.runPromiseExit(prog)
-}
-const setupLayer = () => {
-  const oauth2Config = {
-    basePath: appConfig.hydraInternalAdmin,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  }
-  return Layer.merge(Logger.json, OAuth2ApiServiceLive(oauth2Config))
-}
 
 export const getClient = (clientId: string) => {
   Effect.gen(function* () {

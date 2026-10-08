@@ -95,7 +95,7 @@ export const makeGoogleOAuthService = (
       // Try to parse Google error response
       if (axiosError.response?.data) {
         try {
-          const errorData = axiosError.response.data as any
+          const errorData = axiosError.response.data as { error?: unknown; error_description?: string }
           if (typeof errorData.error === 'string') {
             return new GoogleAuthError({
               error: errorData.error,
@@ -157,13 +157,13 @@ export const makeGoogleOAuthService = (
             catch: (error) => handleAxiosError(error, 'refreshToken'),
           })
         ),
-        Effect.tap((data) =>
+        Effect.tap((data: Record<string, unknown>) =>
           Effect.logInfo('=== GOOGLE refreshToken RESPONSE ===').pipe(
             Effect.annotateLogs({
-              has_access_token: !!(data as any).access_token,
-              has_new_refresh_token: !!(data as any).refresh_token,
-              expires_in: (data as any).expires_in,
-              scope: (data as any).scope,
+              has_access_token: !!data.access_token,
+              has_new_refresh_token: !!data.refresh_token,
+              expires_in: data.expires_in,
+              scope: data.scope,
               timestamp: new Date().toISOString(),
             })
           )
@@ -249,11 +249,11 @@ export const makeGoogleOAuthService = (
         Effect.tap((data) =>
           Effect.logInfo('=== GOOGLE getTokensFromCode RESPONSE ===').pipe(
             Effect.annotateLogs({
-              has_access_token: !!(data as any).access_token,
-              has_refresh_token: !!(data as any).refresh_token,
-              has_id_token: !!(data as any).id_token,
-              expires_in: (data as any).expires_in,
-              scope: (data as any).scope,
+              has_access_token: !!data.access_token,
+              has_refresh_token: !!data.refresh_token,
+              has_id_token: !!data.id_token,
+              expiry_date: data.expiry_date,
+              scope: data.scope,
               timestamp: new Date().toISOString(),
             })
           )
@@ -347,13 +347,13 @@ export const makeGoogleOAuthService = (
             catch: (error) => handleAxiosError(error, 'getUserInfo'),
           })
         ),
-        Effect.tap((data) =>
+        Effect.tap((data: Record<string, unknown>) =>
           Effect.logInfo('=== GOOGLE getUserInfo RESPONSE ===').pipe(
             Effect.annotateLogs({
-              has_email: !!(data as any).email,
-              email: (data as any).email,
-              has_verified_email: !!(data as any).verified_email,
-              verified: (data as any).verified_email,
+              has_email: !!data.email,
+              email: data.email,
+              has_verified_email: !!data.verified_email,
+              verified: data.verified_email,
               timestamp: new Date().toISOString(),
             })
           )

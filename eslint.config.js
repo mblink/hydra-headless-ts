@@ -14,6 +14,7 @@ export default [
       '*.config.js',
       'rollup.config.js',
       '.tsed/**',
+      '.rollup.cache/**',
     ],
   },
   {
@@ -126,6 +127,14 @@ export default [
       '@typescript-eslint/no-non-null-assertion': 'off',
       'no-console': 'off',
       '@typescript-eslint/no-floating-promises': 'off',
+      'functional/no-loop-statements': 'off',
+    },
+  },
+  {
+    // Command-line tools and usage examples print to the terminal
+    files: ['src/cli*.ts', 'src/api/oauth2-example.ts'],
+    rules: {
+      'no-console': 'off',
     },
   },
 ]

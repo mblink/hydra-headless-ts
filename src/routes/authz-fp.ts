@@ -16,14 +16,15 @@
  * usable token, go get one" and 403 means "your token is fine, you are not
  * permitted here" — a challenge would just loop the client.
  */
+import { Effect } from 'effect'
 import { Router } from 'express'
-import { Effect, Layer } from 'effect'
-import { JWTService } from '../fp/services/jwt.js'
 import { isEmailAllowedForResource } from '../fp/services/emailAllowlist.js'
+import { JWTService } from '../fp/services/jwt.js'
 import { syncLogger } from '../logging-effect.js'
+import type { Layer } from 'effect'
 import type { Request, Response } from 'express'
 
-export const createAuthzRouter = (serviceLayer: Layer.Layer<any>) => {
+export const createAuthzRouter = (serviceLayer: Layer.Layer<JWTService>) => {
   const router = Router()
 
   // `all`, not `get`: nginx issues the auth subrequest with the original method.

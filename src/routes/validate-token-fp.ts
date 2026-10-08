@@ -2,15 +2,17 @@
  * Token validation endpoint for testing JWT tokens
  * GET /validate-token?token=<jwt> or with Authorization: Bearer <jwt> header
  */
-import { Router } from 'express'
-import { Effect, Layer } from 'effect'
-import { decodeJwt, decodeProtectedHeader } from 'jose'
 import axios from 'axios'
-import { JWTService, type JWKS } from '../fp/services/jwt.js'
+import { Effect } from 'effect'
+import { Router } from 'express'
+import { decodeJwt, decodeProtectedHeader } from 'jose'
 import { appConfig } from '../config.js'
+import { JWTService, type JWKS } from '../fp/services/jwt.js'
+import type { Layer } from 'effect'
 import type { Request, Response } from 'express'
+import type { JWTPayload, ProtectedHeaderParameters } from 'jose'
 
-export const createValidateTokenRouter = (serviceLayer: Layer.Layer<any>) => {
+export const createValidateTokenRouter = (serviceLayer: Layer.Layer<JWTService>) => {
   const router = Router()
 
   /**
@@ -37,8 +39,8 @@ export const createValidateTokenRouter = (serviceLayer: Layer.Layer<any>) => {
       }
 
       // Decode token header and payload (without verification)
-      let header: any
-      let payload: any
+      let header: ProtectedHeaderParameters
+      let payload: JWTPayload
 
       try {
         header = decodeProtectedHeader(token)

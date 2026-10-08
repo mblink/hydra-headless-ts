@@ -49,7 +49,7 @@ router.get('/verify', (req, res, next) => {
       csrfToken,
       envXsrfToken: appConfig.security.xsrfHeaderName,
       challenge,
-      userCode: String(query.user_code || ''),
+      userCode: String(query.user_code ?? ''),
     })
   )
 })

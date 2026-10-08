@@ -181,7 +181,7 @@ describe('bootstrap', () => {
         return value
       })
 
-      const result = await Effect.runPromise(Effect.provide(program, appLayer))
+      await Effect.runPromise(Effect.provide(program, appLayer))
 
       expect(mockRedis.set).toHaveBeenCalled()
       expect(mockRedis.get).toHaveBeenCalled()

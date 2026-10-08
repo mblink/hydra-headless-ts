@@ -5,8 +5,8 @@ import * as crypto from 'crypto'
 import { Effect } from 'effect'
 import { PKCEStateSchema } from '../domain.js'
 import { type AppError, GoogleAuthError, InvalidState, UnauthorizedEmail } from '../errors.js'
-import { RedisService, createOAuthRedisOps } from './redis.js'
 import { isEmailAllowed } from './emailAllowlist.js'
+import { RedisService, createOAuthRedisOps } from './redis.js'
 import type { AuthCodeData } from '../domain.js';
 
 /**

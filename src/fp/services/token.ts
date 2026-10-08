@@ -3,8 +3,8 @@
  * Returns JWTs instead of Google's opaque access tokens
  * Uses Effect.gen for readable async code with dependency injection
  */
-import { Effect } from 'effect'
 import crypto from 'crypto'
+import { Effect } from 'effect'
 import { decodeJwt } from 'jose'
 import {
   PKCEStateSchema,
@@ -18,8 +18,8 @@ import {
   MissingParameter,
   UnauthorizedEmail,
 } from '../errors.js'
-import { isEmailAllowed } from './emailAllowlist.js'
 import { validatePKCE, parseScopeString, validateScopes } from '../validation.js'
+import { isEmailAllowed } from './emailAllowlist.js'
 import { GoogleOAuthService } from './google.js'
 import { JWTService } from './jwt.js'
 import { RedisService, createOAuthRedisOps } from './redis.js'

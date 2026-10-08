@@ -181,11 +181,11 @@ export const createTokenHandler = (serviceLayer: Layer.Layer<RedisService | Goog
 
       } else {
         yield* Effect.logDebug('Unsupported grant type received').pipe(
-          Effect.annotateLogs({ grant_type: (tokenRequest as any).grant_type })
+          Effect.annotateLogs({ grant_type: (tokenRequest as { grant_type: unknown }).grant_type })
         )
         return yield* Effect.fail(
           new InvalidGrant({
-            reason: `Unsupported grant_type: ${(tokenRequest as any).grant_type}`,
+            reason: `Unsupported grant_type: ${String((tokenRequest as { grant_type: unknown }).grant_type)}`,
           })
         )
       }
