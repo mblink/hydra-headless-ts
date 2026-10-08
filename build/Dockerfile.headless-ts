@@ -10,7 +10,7 @@ RUN apk add --no-cache vim git bash postgresql-client
 
 RUN git clone --branch ${BRANCH_NAME} --single-branch https://github.com/jeffdyke/hydra-headless-ts.git /tmp/repo \
     && cp -rf /tmp/repo/* /usr/src/app \
-    && npm install \
+    && npm ci \
     && npm run build \
     && rm -rf /tmp/repo
 
