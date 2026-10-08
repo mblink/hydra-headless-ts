@@ -142,6 +142,13 @@ export class UnauthorizedEmail extends Data.TaggedError('UnauthorizedEmail')<{
   email: string
 }> {}
 
+/**
+ * The OAuth `state` returned to a redirect endpoint doesn't belong to a flow this browser started
+ */
+export class InvalidState extends Data.TaggedError('InvalidState')<{
+  reason: string
+}> {}
+
 export type OAuthError =
   | InvalidPKCE
   | InvalidGrant
@@ -150,6 +157,7 @@ export type OAuthError =
   | MissingParameter
   | ExpiredToken
   | UnauthorizedEmail
+  | InvalidState
 
 /**
  * Google OAuth errors

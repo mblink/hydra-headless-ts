@@ -3,9 +3,8 @@
  */
 import * as crypto from 'crypto'
 import { Effect } from 'effect'
-import { decodeJwt } from 'jose'
 import { PKCEStateSchema } from '../domain.js'
-import { type AppError, GoogleAuthError, UnauthorizedEmail } from '../errors.js'
+import { type AppError, GoogleAuthError, InvalidState, UnauthorizedEmail } from '../errors.js'
 import { RedisService, createOAuthRedisOps } from './redis.js'
 import { isEmailAllowed } from './emailAllowlist.js'
 import type { AuthCodeData } from '../domain.js';
@@ -15,6 +14,8 @@ import type { AuthCodeData } from '../domain.js';
  */
 export interface CallbackConfig {
   readonly middlewareRedirectUri: string
+  /** Expected audience of Google's ID token */
+  readonly googleClientId: string
 }
 
 /**
@@ -36,6 +37,9 @@ interface GoogleOAuthTokens {
  */
 export interface GoogleOAuthClient {
   getToken(code: string): Promise<GoogleOAuthTokens>
+  verifyIdToken(options: { idToken: string; audience: string }): Promise<{
+    getPayload(): { sub: string; email?: string; email_verified?: boolean } | undefined
+  }>
 }
 
 /**
@@ -57,9 +61,35 @@ const exchangeGoogleCode = (
   })
 
 /**
+ * Verify Google's ID token (signature, issuer, audience, expiry) and return its claims
+ */
+const verifyGoogleIdToken = (
+  idToken: string,
+  googleClient: GoogleOAuthClient,
+  audience: string
+) =>
+  Effect.tryPromise({
+    try: () => googleClient.verifyIdToken({ idToken, audience }),
+    catch: (error) =>
+      new GoogleAuthError({ error: 'invalid_id_token', errorDescription: String(error) }),
+  }).pipe(
+    Effect.flatMap((ticket) => {
+      const payload = ticket.getPayload()
+      return payload?.sub
+        ? Effect.succeed(payload)
+        : Effect.fail(
+            new GoogleAuthError({
+              error: 'invalid_id_token',
+              errorDescription: 'Google ID token has no subject',
+            })
+          )
+    })
+  )
+
+/**
  * Process OAuth callback
- * 1. Fetch PKCE state from Redis
- * 2. Exchange Google auth code for tokens
+ * 1. Look up the flow by the returned state and check it belongs to this browser session
+ * 2. Exchange Google auth code for tokens and verify the ID token
  * 3. Generate new auth_code for passthrough
  * 4. Store auth_code and state in Redis
  * 5. Delete PKCE session
@@ -67,8 +97,8 @@ const exchangeGoogleCode = (
  */
 export const processCallback = (
   googleCode: string,
-  returnedState: string,
-  pkceKey: string,
+  flowId: string,
+  sessionId: string,
   googleClient: GoogleOAuthClient,
   config: CallbackConfig
 ): Effect.Effect<string, AppError, RedisService> =>
@@ -81,13 +111,19 @@ export const processCallback = (
     yield* Effect.logInfo('Processing OAuth callback').pipe(
       Effect.annotateLogs({
         code: googleCode,
-        returnedState,
-        pkceKey,
+        flowId,
       })
     )
 
-    // Step 1: Fetch PKCE data from Redis
-    const pkceData = yield* redisOps.getPKCEState(pkceKey, PKCEStateSchema)
+    // Step 1: Fetch PKCE data from Redis by the state Google returned
+    const pkceData = yield* redisOps.getPKCEState(flowId, PKCEStateSchema)
+
+    // Reject a Google response for a flow another browser started (login CSRF)
+    if (pkceData.session_id !== sessionId) {
+      return yield* Effect.fail(
+        new InvalidState({ reason: 'Authorization flow was started in a different session' })
+      )
+    }
 
     yield* Effect.logInfo('PKCE data fetched').pipe(
       Effect.annotateLogs({
@@ -124,8 +160,9 @@ export const processCallback = (
       )
     }
 
-    const idPayload = decodeJwt(idToken)
-    const email = typeof idPayload['email'] === 'string' ? idPayload['email'] : undefined
+    const idPayload = yield* verifyGoogleIdToken(idToken, googleClient, config.googleClientId)
+    // Google only vouches for the address when email_verified is true
+    const email = idPayload.email_verified === true ? idPayload.email : undefined
     if (!email || !isEmailAllowed(email)) {
       yield* Effect.logWarning('Blocked unauthorized email at callback').pipe(
         Effect.annotateLogs({ email: email ?? '<missing>' })
@@ -147,7 +184,8 @@ export const processCallback = (
           id_token: googleTokens.tokens.id_token ?? undefined,
         },
       },
-      subject: undefined, // Will be populated from user info if needed
+      // Google's stable account id; unlike the email it never changes or gets reassigned
+      subject: idPayload.sub,
     }
 
     yield* Effect.logInfo('AuthData').pipe(Effect.annotateLogs({ authData }))
@@ -159,10 +197,10 @@ export const processCallback = (
 
     // Step 6: Delete PKCE session (cleanup) - catch errors to not fail the flow
     yield* Effect.catchAll(
-      redisOps.deletePKCEState(pkceKey),
+      redisOps.deletePKCEState(flowId),
       (err) =>
         Effect.logError('Failed to delete PKCE session').pipe(
-          Effect.annotateLogs({ err, pkceKey })
+          Effect.annotateLogs({ err, flowId })
         )
     )
 

@@ -23,7 +23,9 @@ const mapErrorToHttp = (error: AppError): { status: number; message: string } =>
         message: `Google token exchange failed: ${error.errorDescription}`,
       }
     case 'RedisKeyNotFound':
-      return { status: 400, message: 'Session not found or expired' }
+      return { status: 400, message: 'Authorization request not found or expired' }
+    case 'InvalidState':
+      return { status: 400, message: 'Authorization request was started in a different browser' }
     case 'RedisParseError':
       return { status: 500, message: 'Session data corrupted' }
     default:
@@ -40,9 +42,9 @@ const createCallbackHandler = (
   config: CallbackConfig
 ) => {
   return async (req: express.Request, res: express.Response) => {
-    const code = req.query.code as string
-    const returnedState = req.query.state as string
-    const pkceKey = req.session?.pkceKey as string | undefined
+    const code = typeof req.query.code === 'string' ? req.query.code : undefined
+    // The flow id consent sent to Google (see setup/proxy.ts)
+    const returnedState = typeof req.query.state === 'string' ? req.query.state : undefined
 
     // Log entry point
     await Effect.runPromise(
@@ -54,9 +56,6 @@ const createCallbackHandler = (
           code_preview: code ? `${code.substring(0, 20)}...` : 'none',
           has_state: !!returnedState,
           state_preview: returnedState ? `${returnedState.substring(0, 20)}...` : 'none',
-          has_pkce_key: !!pkceKey,
-          pkce_key: pkceKey,
-          session_id: req.session?.id,
           query: req.query,
           headers: {
             'content-type': req.headers['content-type'],
@@ -85,19 +84,17 @@ const createCallbackHandler = (
       return
     }
 
-    if (!req.session || !pkceKey) {
+    if (!returnedState) {
       await Effect.runPromise(
-        Effect.logError('=== CALLBACK ERROR: Missing Session/PKCE ===').pipe(
+        Effect.logError('=== CALLBACK ERROR: Missing State ===').pipe(
           Effect.annotateLogs({
-            has_session: !!req.session,
-            has_pkce_key: !!pkceKey,
-            session_id: req.session?.id,
+            query: req.query,
             timestamp: new Date().toISOString(),
           }),
           Effect.provide(serviceLayer)
         )
       )
-      res.status(400).send('Missing session or PKCE key')
+      res.status(400).send('Missing state')
       return
     }
 
@@ -105,12 +102,11 @@ const createCallbackHandler = (
       Effect.logInfo('Processing Google OAuth callback').pipe(
         Effect.annotateLogs({
           code_preview: `${code.substring(0, 20)}...`,
-          state_preview: returnedState ? `${returnedState.substring(0, 20)}...` : 'none',
-          pkce_key: pkceKey,
+          state_preview: `${returnedState.substring(0, 20)}...`,
           config,
         })
       ),
-      Effect.andThen(() => processCallback(code, returnedState, pkceKey, googleClient, config)),
+      Effect.andThen(() => processCallback(code, returnedState, req.session.id, googleClient, config)),
       Effect.provide(serviceLayer)
     )
 

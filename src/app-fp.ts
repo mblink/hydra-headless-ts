@@ -76,6 +76,7 @@ const consentConfig = {
 
 const callbackConfig = {
   middlewareRedirectUri: appConfig.middlewareRedirectUri,
+  googleClientId: appConfig.googleClientId ?? '',
 }
 
 const logoutConfig = {
@@ -93,10 +94,13 @@ app.use(
       tableName: 'session',
       createTableIfMissing: true,
     }),
-    secret: process.env.SESSION_SECRET ?? 'change-me-in-production',
+    secret: appConfig.security.sessionSecret,
     resave: false,
     saveUninitialized: false,
     proxy: true,
+    // Lax, not None: the session must ride along on Google's top-level redirect to /callback,
+    // and nothing needs it on cross-site subrequests
+    cookie: { httpOnly: true, secure: appConfig.secure, sameSite: 'lax' },
   })
 )
 

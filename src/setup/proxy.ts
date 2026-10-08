@@ -2,6 +2,7 @@
  * Proxy middleware for OAuth2 authorization flow
  * Uses RedisService from fp/services to store PKCE state with proper error handling
  */
+import { randomBytes } from 'crypto'
 import { type ClientRequest } from 'http'
 import { Effect, Layer } from 'effect'
 import express from 'express'
@@ -91,8 +92,14 @@ const proxyOptions = {
   pathRewrite: async (path: string, req: Request) => {
     const parsed = new URL(`${req.protocol  }://${  req.get('host')  }${req.originalUrl}`)
     if (parsed.pathname === '/oauth2/auth') {
-      const sessionId = crypto.randomUUID()
-      req.session.pkceKey = req.session.pkceKey ?? sessionId
+      // One id per authorization request, so overlapping flows in the same browser don't share
+      // state. It keys the PKCE state in Redis and replaces the client's `state` on the way to
+      // Hydra; consent reads it back from Hydra's request_url and sends it to Google as `state`,
+      // and the callback looks the flow up by it.
+      const flowId = randomBytes(32).toString('base64url')
+      // Writing to the session makes express-session persist it and set its cookie, so the
+      // callback can check it comes from the browser that started the flow
+      req.session.oauthFlowStartedAt = Date.now()
 
       const {
         client_id,
@@ -114,15 +121,15 @@ const proxyOptions = {
           redirect_uri: String(redirect_uri ?? ''),
           client_id: String(client_id ?? ''),
           timestamp: Date.now(),
+          session_id: req.session.id,
         }
 
         // Store PKCE state in Redis using Effect with RedisService
-        const pkceKey = req.session.pkceKey ?? sessionId
         const storePKCE = Effect.gen(function* () {
           const redis = yield* RedisService
           const redisOps = createOAuthRedisOps(redis)
           return yield* redisOps.setPKCEState(
-            pkceKey,
+            flowId,
             pkceData,
             3600 // 1 hour TTL
           )
@@ -133,16 +140,16 @@ const proxyOptions = {
         const result = await Effect.runPromise(Effect.either(program))
 
         if (result._tag === 'Left') {
-          // Log non-fatal Redis errors but don't fail the reques t
+          // Log non-fatal Redis errors but don't fail the request
           syncLogger.error('Failed to store PKCE state in Redis', {
-            key: `pkce_session:${req.session.pkceKey}`,
+            key: `pkce_session:${flowId}`,
             error: result.left,
             pkceData,
           })
           // Continue processing - Redis failure is not fatal for the proxy
         } else {
           syncLogger.debug('PKCE state stored successfully', {
-            key: `pkce_session:${req.session.pkceKey}`,
+            key: `pkce_session:${flowId}`,
           })
         }
       }
@@ -151,13 +158,10 @@ const proxyOptions = {
       const queryString = new URLSearchParams(parsed.searchParams.toString())
       queryString.delete('code_challenge')
       queryString.delete('code_challenge_method')
-      queryString.set('state', req.session.id)
+      queryString.set('state', flowId)
 
       const returnPath = [parsed.pathname, queryString].join('?')
-      syncLogger.info('Proxy complete: Sending to Hydra, session ID is set to be state', {
-        sessionId: req.session.id,
-        pkceKey: req.session.pkceKey,
-      })
+      syncLogger.info('Proxy complete: Sending to Hydra with the flow id as state', { flowId })
 
       return returnPath
     }
@@ -268,7 +272,6 @@ const enhancedProxyMiddleware = async (req: Request, res: Response, next: NextFu
       path: req.path,
       query: req.query,
       session_id: req.session.id,
-      session_pkce_key: req.session.pkceKey,
       headers: {
         'content-type': req.headers['content-type'],
         'user-agent': req.headers['user-agent'],

@@ -304,6 +304,9 @@ const googleConfig = (
   )
 }
 
+const requiredOutsideLocal = (name: string, isLocal: boolean, localDefault: string) =>
+  isLocal ? Config.string(name).pipe(Config.withDefault(localDefault)) : Config.string(name)
+
 /**
  * Security configuration
  */
@@ -311,14 +314,10 @@ const securityConfig = (env: AppEnvironment, https: boolean, baseUrl: string): C
   const isLocal = isLocalEnvironment(env)
 
   return Config.all({
-    sessionSecret: Config.string('SESSION_SECRET').pipe(
-      Config.withDefault(
-        isLocal ? 'local-dev-secret' : 'change-me-in-production'
-      )
-    ),
-    cookieSecret: Config.string('COOKIE_SECRET').pipe(
-      Config.withDefault('G6KaOf8aJsLagw566he8yxOTTO3tInKD')
-    ),
+    // Signing secrets have no default outside local, so a missing one stops startup instead of
+    // falling back to a value anyone can read in this repo
+    sessionSecret: requiredOutsideLocal('SESSION_SECRET', isLocal, 'local-dev-session-secret'),
+    cookieSecret: requiredOutsideLocal('COOKIE_SECRET', isLocal, 'local-dev-cookie-secret'),
     csrfTokenName: Config.succeed(isLocal ? 'dev_xsrf_token' : 'xsrf_token'),
     xsrfHeaderName: Config.succeed(isLocal ? 'dev_xsrf_token' : 'xsrf_token'),
     sameSite: Config.succeed<SameSiteType>('lax'),
