@@ -53,20 +53,32 @@ describe('fp/validation', () => {
       expect(result._tag).toBe('Left');
     });
 
-    it('accepts plain when verifier equals challenge', async () => {
-      await expect(Effect.runPromise(validatePKCE('abc', 'abc', 'plain'))).resolves.toBe(true);
-    });
-
-    it('rejects plain when verifier differs', async () => {
-      const result = await runEither(validatePKCE('abc', 'abd', 'plain'));
+    it('rejects plain even when the verifier equals the challenge', async () => {
+      const result = await runEither(validatePKCE(verifier, verifier, 'plain'));
       expect(result._tag).toBe('Left');
+      if (result._tag === 'Left') {
+        expect(result.left.method).toContain('only S256 is supported');
+      }
     });
 
     it('rejects an unknown method', async () => {
-      const result = await runEither(validatePKCE('abc', 'abc', 'S512' as never));
+      const result = await runEither(validatePKCE(verifier, s256Challenge, 'S512' as never));
       expect(result._tag).toBe('Left');
       if (result._tag === 'Left') {
-        expect(result.left.method).toContain('Unknown method');
+        expect(result.left.method).toContain('only S256 is supported');
+      }
+    });
+
+    it.each([
+      ['too short', 'a'.repeat(42)],
+      ['too long', 'a'.repeat(129)],
+      ['outside the unreserved set', `${'a'.repeat(42)}+`],
+    ])('rejects a code_verifier that is %s', async (_label, badVerifier) => {
+      const challenge = crypto.createHash('sha256').update(badVerifier).digest('base64url');
+      const result = await runEither(validatePKCE(badVerifier, challenge, 'S256'));
+      expect(result._tag).toBe('Left');
+      if (result._tag === 'Left') {
+        expect(result.left.method).toContain('code_verifier must be 43-128 unreserved characters');
       }
     });
   });

@@ -35,9 +35,22 @@ export const processAuthCodeGrant = (
       redisOps.getAuthCodeState(grant.code, PKCEStateSchema),
     ]);
 
-    // Step 2: Clean up one-time use auth codes (sequential)
-    yield* redisOps.deleteAuthCode(grant.code);
+    // Step 2: Spend the code. Only one of several concurrent exchanges sees DEL remove the key,
+    // so the others fail here instead of each getting tokens.
+    const claimed = yield* redisOps.deleteAuthCode(grant.code);
     yield* redisOps.deleteAuthCodeState(grant.code);
+    if (claimed === 0) {
+      return yield* Effect.fail(new InvalidGrant({ reason: 'Authorization code has already been used' }));
+    }
+
+    // RFC 6749 §4.1.3: the code must be redeemed by the client it was issued to, with the same
+    // redirect_uri as the authorization request
+    if (grant.client_id !== pkceState.client_id) {
+      return yield* Effect.fail(new InvalidGrant({ reason: 'Authorization code was not issued to this client' }));
+    }
+    if (grant.redirect_uri !== pkceState.redirect_uri) {
+      return yield* Effect.fail(new InvalidGrant({ reason: 'redirect_uri does not match the authorization request' }));
+    }
 
     // Step 3: Validate PKCE
     yield* validatePKCE(grant.code_verifier, pkceState.code_challenge, pkceState.code_challenge_method);
@@ -167,6 +180,11 @@ export const processRefreshTokenGrant = (
     const jwtRefreshData = yield* redisOps.getJWTRefresh(refreshToken, JWTRefreshDataSchema);
 
     yield* Effect.logTrace('Fetched JWT refresh data').pipe(Effect.annotateLogs({ jti: jwtRefreshData.jti }));
+
+    // RFC 6749 §6: a refresh token is bound to the client it was issued to
+    if (grant.client_id !== jwtRefreshData.client_id) {
+      return yield* Effect.fail(new InvalidGrant({ reason: 'Refresh token was not issued to this client' }));
+    }
 
     // Step 3: Fetch Google token data using JTI
     const googleTokenData = yield* redisOps.getGoogleToken(jwtRefreshData.jti, GoogleTokenDataSchema);

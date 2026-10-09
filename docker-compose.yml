@@ -113,7 +113,6 @@ services:
       secrets:
         - github_askpass
     environment:
-      - NODE_TLS_REJECT_UNAUTHORIZED=0
       - NODE_ENV=development
     depends_on:
       - hydra

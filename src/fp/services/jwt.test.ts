@@ -90,7 +90,7 @@ describe('JWTService email choke points', () => {
     it('rejects when verified claims contain an unauthorised email', async () => {
       vi.mocked(isEmailAllowed).mockReturnValue(false);
       vi.mocked(jwtVerify).mockResolvedValue({
-        payload: { ...validPayload, email: 'blocked@gmail.com' },
+        payload: { ...validPayload, email: 'blocked@gmail.com', email_verified: true },
         protectedHeader: { alg: 'RS256' },
       } as any);
 
@@ -201,10 +201,28 @@ describe('JWTService email choke points', () => {
       }
     });
 
+    it.each([
+      ['false', { email_verified: false }],
+      ['absent', {}],
+    ])('rejects a Google token whose email_verified is %s', async (_label, verified) => {
+      vi.mocked(isEmailAllowed).mockReturnValue(true);
+      vi.mocked(jwtVerify).mockResolvedValue({
+        payload: { sub: 'google-user-123', email: 'user@bondlink.com', iat: 1000, exp: 9999999999, ...verified },
+        protectedHeader: { alg: 'RS256' },
+      } as any);
+
+      const service = makeJWTService(googleConfig);
+      const result = await Effect.runPromise(Effect.either(service.verify('google.id.token')));
+
+      assert(Either.isLeft(result));
+      expect(result.left).toBeInstanceOf(ParseError);
+      expect((result.left as ParseError).message).toContain('has not verified the email address');
+    });
+
     it('succeeds when email is in the allowlist', async () => {
       vi.mocked(isEmailAllowed).mockReturnValue(true);
       vi.mocked(jwtVerify).mockResolvedValue({
-        payload: { ...validPayload, email: 'user@bondlink.com' },
+        payload: { ...validPayload, email: 'user@bondlink.com', email_verified: true },
         protectedHeader: { alg: 'RS256' },
       } as any);
 

@@ -116,7 +116,6 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
         Effect.logInfo('=== GOOGLE refreshToken CALLED ===').pipe(
           Effect.annotateLogs({
             has_refresh_token: !!tokenData.refresh_token,
-            refresh_token_preview: tokenData.refresh_token ? `${tokenData.refresh_token.substring(0, 20)}...` : 'none',
             client_id: tokenData.client_id,
             scope: tokenData.scope,
             endpoint: TOKEN_ENDPOINT,

@@ -306,6 +306,11 @@ export const makeJWTService = (config: JWTConfig): JWTService => {
             if (missing.length > 0) {
               throw new Error(`Missing required claims for provider '${config.provider}': ${missing.join(', ')}`);
             }
+            // The allowlist below is keyed on the email, which Google only vouches for when it has
+            // verified it; the callback applies the same rule before issuing a code
+            if (config.provider === 'google' && payload['email_verified'] !== true) {
+              throw new Error('Google has not verified the email address in this token');
+            }
 
             return payload as JWTClaims;
           },

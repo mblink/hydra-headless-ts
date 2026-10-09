@@ -12,6 +12,7 @@ import { appConfig } from '../config.js';
 import { CimdCacheEntrySchema } from '../fp/domain.js';
 import { CimdRedirectUriMismatch } from '../fp/errors.js';
 import { cimdContentHash, fetchCimdMetadata, isHttpsUrlClientId } from '../fp/services/cimd.js';
+import { findDisallowedRedirectUri, isRedirectUriAllowed } from '../fp/services/redirectUri.js';
 import { RedisService, RedisServiceLive, createOAuthRedisOps } from '../fp/services/redis.js';
 import { syncLogger } from '../logging-effect.js';
 import { OAuth2ApiLayer } from './hydra.js';
@@ -25,6 +26,24 @@ import type { Socket } from 'net';
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+const AUTHORIZE_PARAMS = [
+  'client_id',
+  'redirect_uri',
+  'response_type',
+  'code_challenge',
+  'code_challenge_method',
+  'scope',
+  'state',
+] as const;
+type AuthorizeParam = (typeof AUTHORIZE_PARAMS)[number];
+
+// BASE64URL(SHA-256(verifier)) is always 43 characters without padding
+const S256_CHALLENGE = /^[A-Za-z0-9_-]{43}$/;
+
+// The flow id the validating middleware stored the PKCE state under, for pathRewrite to put in
+// the query string sent to Hydra
+const flowIds = new WeakMap<Request, string>();
 
 // Create Redis service layer from the redis client
 const redisLayer = RedisServiceLive(redisClient);
@@ -80,59 +99,9 @@ const proxyOptions = {
   pathRewrite: async (path: string, req: Request) => {
     const parsed = new URL(`${req.protocol}://${req.get('host')}${req.originalUrl}`);
     if (parsed.pathname === '/oauth2/auth') {
-      // One id per authorization request, so overlapping flows in the same browser don't share
-      // state. It keys the PKCE state in Redis and replaces the client's `state` on the way to
-      // Hydra; consent reads it back from Hydra's request_url and sends it to Google as `state`,
-      // and the callback looks the flow up by it.
-      const flowId = randomBytes(32).toString('base64url');
-      // Writing to the session makes express-session persist it and set its cookie, so the
-      // callback can check it comes from the browser that started the flow
-      req.session.oauthFlowStartedAt = Date.now();
-
-      const { client_id, redirect_uri, state, code_challenge, code_challenge_method, scope } = req.query;
-
-      // Only store PKCE state if we have the required parameters
-      if (code_challenge !== undefined && state !== undefined) {
-        const method = String(code_challenge_method ?? 'S256');
-        const pkceData: PKCEState = {
-          code_challenge: String(code_challenge),
-          code_challenge_method: method === 'plain' ? 'plain' : 'S256',
-          scope: String(scope ?? ''),
-          state: String(state),
-          redirect_uri: String(redirect_uri ?? ''),
-          client_id: String(client_id ?? ''),
-          timestamp: Date.now(),
-          session_id: req.session.id,
-        };
-
-        // Store PKCE state in Redis using Effect with RedisService
-        const storePKCE = Effect.gen(function* () {
-          const redis = yield* RedisService;
-          const redisOps = createOAuthRedisOps(redis);
-          return yield* redisOps.setPKCEState(
-            flowId,
-            pkceData,
-            3600, // 1 hour TTL
-          );
-        });
-
-        // Provide the Redis layer and run the Effect
-        const program = Effect.provide(storePKCE, redisLayer);
-        const result = await Effect.runPromise(Effect.either(program));
-
-        if (result._tag === 'Left') {
-          // Log non-fatal Redis errors but don't fail the request
-          syncLogger.error('Failed to store PKCE state in Redis', {
-            key: `pkce_session:${flowId}`,
-            error: result.left,
-            pkceData,
-          });
-          // Continue processing - Redis failure is not fatal for the proxy
-        } else {
-          syncLogger.debug('PKCE state stored successfully', {
-            key: `pkce_session:${flowId}`,
-          });
-        }
+      const flowId = flowIds.get(req);
+      if (!flowId) {
+        throw new Error('/oauth2/auth reached the proxy without a stored flow');
       }
 
       // Rewrite the query string
@@ -278,7 +247,19 @@ const enhancedProxyMiddleware = async (req: Request, res: Response, next: NextFu
       timestamp: new Date().toISOString(),
     });
 
-    const { client_id, redirect_uri, response_type, code_challenge, code_challenge_method, scope, state } = req.query;
+    // Express turns a repeated parameter into an array. Hydra validates the first value, so the
+    // app must not go on to use a different one (e.g. the joined "A,B" as redirect_uri).
+    const repeatedParam = AUTHORIZE_PARAMS.find(
+      (name) => req.query[name] !== undefined && typeof req.query[name] !== 'string',
+    );
+    if (repeatedParam) {
+      return res.status(400).json({
+        error: 'invalid_request',
+        error_description: `${repeatedParam} must be given exactly once`,
+      });
+    }
+    const { client_id, redirect_uri, response_type, code_challenge, code_challenge_method, scope, state } =
+      req.query as Partial<Record<AuthorizeParam, string>>;
 
     // Fatal validation errors that should return 400
     const missingParams: string[] = [];
@@ -288,8 +269,12 @@ const enhancedProxyMiddleware = async (req: Request, res: Response, next: NextFu
     // stored redirect_uri itself rather than through Hydra, so the flow can't finish without it
     if (!redirect_uri) missingParams.push('redirect_uri');
     if (!response_type) missingParams.push('response_type');
+    // The token endpoint checks the verifier against the stored challenge, and the callback
+    // returns the client's state, so the flow can't finish without either
+    if (!code_challenge) missingParams.push('code_challenge');
+    if (!state) missingParams.push('state');
 
-    if (missingParams.length > 0) {
+    if (!client_id || !redirect_uri || !response_type || !code_challenge || !state) {
       syncLogger.error('=== OAUTH2 AUTH ERROR: Missing Parameters ===', {
         missingParams,
         query: req.query,
@@ -314,12 +299,36 @@ const enhancedProxyMiddleware = async (req: Request, res: Response, next: NextFu
       });
     }
 
+    // Hydra checks redirect_uri against the client's registration, but anyone can register a
+    // client, so the registered URI also has to be one this deployment trusts
+    if (!isRedirectUriAllowed(redirect_uri, appConfig.redirectUris)) {
+      syncLogger.warn('=== OAUTH2 AUTH ERROR: redirect_uri not allowed ===', { client_id, redirect_uri });
+      return res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'redirect_uri is not allowed',
+      });
+    }
+
+    // RFC 7636 makes a missing method mean plain, which leaves the verifier in the front channel
+    if (code_challenge_method !== 'S256') {
+      return res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'code_challenge_method must be S256',
+      });
+    }
+    if (!S256_CHALLENGE.test(code_challenge)) {
+      return res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'code_challenge must be a base64url-encoded SHA-256 hash',
+      });
+    }
+
     // CIMD (Client ID Metadata Document) clients present an https:// URL as
     // client_id instead of a Hydra-issued DCR id. Existing DCR clients fall
     // straight through unchanged — this only branches for URL-shaped ids.
-    if (appConfig.cimd.enabled && isHttpsUrlClientId(String(client_id))) {
+    if (appConfig.cimd.enabled && isHttpsUrlClientId(client_id)) {
       const outcome = await Effect.runPromise(
-        Effect.either(Effect.provide(runCimdPipeline(String(client_id), String(redirect_uri)), cimdLayer)),
+        Effect.either(Effect.provide(runCimdPipeline(client_id, redirect_uri), cimdLayer)),
       );
       if (outcome._tag === 'Left') {
         syncLogger.error('=== OAUTH2 AUTH ERROR: CIMD validation failed ===', {
@@ -334,15 +343,54 @@ const enhancedProxyMiddleware = async (req: Request, res: Response, next: NextFu
       }
     }
 
-    // Log PKCE parameters
-    syncLogger.info('OAUTH2 AUTH: PKCE Parameters', {
-      has_code_challenge: !!code_challenge,
-      code_challenge_method: code_challenge_method ?? 'not provided',
-      has_state: !!state,
-      scope,
-      timestamp: new Date().toISOString(),
-    });
+    // One id per authorization request, so overlapping flows in the same browser don't share
+    // state. It keys the PKCE state in Redis and replaces the client's `state` on the way to
+    // Hydra; consent reads it back from Hydra's request_url and sends it to Google as `state`,
+    // and the callback looks the flow up by it.
+    const flowId = randomBytes(32).toString('base64url');
+    // Writing to the session makes express-session persist it and set its cookie, so the
+    // callback can check it comes from the browser that started the flow
+    req.session.oauthFlowStartedAt = Date.now();
+
+    const pkceData: PKCEState = {
+      code_challenge,
+      code_challenge_method,
+      scope: scope ?? '',
+      state,
+      redirect_uri,
+      client_id,
+      timestamp: Date.now(),
+      session_id: req.session.id,
+    };
+    const stored = await Effect.runPromise(
+      Effect.either(
+        Effect.provide(
+          Effect.flatMap(RedisService, (redis) => createOAuthRedisOps(redis).setPKCEState(flowId, pkceData, 3600)),
+          redisLayer,
+        ),
+      ),
+    );
+    // Without the stored state the callback can't finish the flow, so stop before the user logs in
+    if (stored._tag === 'Left') {
+      syncLogger.error('Failed to store PKCE state in Redis', { error: stored.left });
+      return res.status(503).json({
+        error: 'temporarily_unavailable',
+        error_description: 'Could not start the authorization flow',
+      });
+    }
+    flowIds.set(req, flowId);
   } else if (pathname.startsWith('/oauth2/register')) {
+    // Creating (POST) and updating (PUT, RFC 7592) a client both set its redirect_uris
+    if (req.method === 'POST' || req.method === 'PUT') {
+      const rejected = findDisallowedRedirectUri(req.body?.redirect_uris, appConfig.redirectUris);
+      if (rejected) {
+        syncLogger.warn('=== OAUTH2 CLIENT REGISTRATION REJECTED ===', {
+          reason: rejected,
+          user_agent: req.headers['user-agent'],
+        });
+        return res.status(400).json({ error: 'invalid_redirect_uri', error_description: rejected });
+      }
+    }
     syncLogger.info('=== OAUTH2 CLIENT REGISTRATION ENDPOINT ===', {
       method: req.method,
       path: pathname,
