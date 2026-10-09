@@ -2,13 +2,13 @@
  * Domain types with Effect Schema for runtime validation
  * Using Effect Schema provides both compile-time types and runtime validation
  */
-import { Schema } from 'effect'
+import { Schema } from 'effect';
 
 /**
  * PKCE Challenge Method
  */
-export const PKCEMethodSchema = Schema.Literal('S256', 'plain')
-export type PKCEMethod = typeof PKCEMethodSchema.Type
+export const PKCEMethodSchema = Schema.Literal('S256', 'plain');
+export type PKCEMethod = typeof PKCEMethodSchema.Type;
 
 /**
  * PKCE State stored in Redis
@@ -21,22 +21,19 @@ export const PKCEStateSchema = Schema.Struct({
   redirect_uri: Schema.String,
   client_id: Schema.String,
   timestamp: Schema.Number,
-})
-export type PKCEState = typeof PKCEStateSchema.Type
+  // Express session that started the flow; the Google callback must come from the same session
+  session_id: Schema.optional(Schema.String),
+});
+export type PKCEState = typeof PKCEStateSchema.Type;
 
 /**
  * Hydra Client
  */
 
-export const AllowedFlowScopes = Schema.Literal("email", "offline_access", "profile", "openid")
-export const AllowedResponseTypes = Schema.Literal("code")
-
-
 /**
  * OAuth2 Grant Types
  */
-export const GrantTypeSchema = Schema.Literal('authorization_code', 'refresh_token')
-export type GrantType = typeof GrantTypeSchema.Type
+export const GrantTypeSchema = Schema.Literal('authorization_code', 'refresh_token');
 
 /**
  * Authorization Code Grant Request
@@ -47,8 +44,8 @@ export const AuthCodeGrantSchema = Schema.Struct({
   code_verifier: Schema.String,
   redirect_uri: Schema.String,
   client_id: Schema.String,
-})
-export type AuthCodeGrant = typeof AuthCodeGrantSchema.Type
+});
+export type AuthCodeGrant = typeof AuthCodeGrantSchema.Type;
 
 /**
  * Refresh Token Grant Request
@@ -58,29 +55,13 @@ export const RefreshTokenGrantSchema = Schema.Struct({
   refresh_token: Schema.String,
   client_id: Schema.String,
   scope: Schema.optional(Schema.String),
-})
-export type RefreshTokenGrant = typeof RefreshTokenGrantSchema.Type
+});
+export type RefreshTokenGrant = typeof RefreshTokenGrantSchema.Type;
 
 /**
  * Token Request (discriminated union)
  */
-export const TokenRequestSchema = Schema.Union(
-  AuthCodeGrantSchema,
-  RefreshTokenGrantSchema
-)
-export type TokenRequest = typeof TokenRequestSchema.Type
-
-export const AuthFlowResponseTypes = Schema.Literal("code")
-
-export const AuthFlowCreateClientSchema = Schema.Struct({
-  client_name: Schema.String,
-  scope: Schema.Array(Schema.String),
-  grant_types: Schema.Array(Schema.String),
-  response_types: Schema.Array(AuthFlowResponseTypes),
-  redirect_urls: Schema.Array(Schema.String),
-  token_endpoint_auth_method: Schema.Literal("none")
-})
-export type AuthFlowCreateClientRequest = typeof AuthFlowCreateClientSchema.Type
+export const TokenRequestSchema = Schema.Union(AuthCodeGrantSchema, RefreshTokenGrantSchema);
 
 /**
  * Client ID Metadata Document (CIMD)
@@ -108,8 +89,8 @@ export const CimdMetadataSchema = Schema.Struct({
   contacts: Schema.optional(Schema.Array(Schema.String)),
   tos_uri: Schema.optional(Schema.String),
   policy_uri: Schema.optional(Schema.String),
-})
-export type CimdMetadata = typeof CimdMetadataSchema.Type
+});
+export type CimdMetadata = typeof CimdMetadataSchema.Type;
 
 /**
  * Cached, previously-validated CIMD document, keyed by client_id URL in
@@ -119,8 +100,7 @@ export const CimdCacheEntrySchema = Schema.Struct({
   metadata: CimdMetadataSchema,
   contentHash: Schema.String,
   fetchedAt: Schema.Number,
-})
-export type CimdCacheEntry = typeof CimdCacheEntrySchema.Type
+});
 
 /**
  * Google Token Response
@@ -132,8 +112,8 @@ export const GoogleTokenResponseSchema = Schema.Struct({
   token_type: Schema.String,
   id_token: Schema.optional(Schema.String),
   refresh_token: Schema.optional(Schema.String),
-})
-export type GoogleTokenResponse = typeof GoogleTokenResponseSchema.Type
+});
+export type GoogleTokenResponse = typeof GoogleTokenResponseSchema.Type;
 export const GoogleUserInfoSchema = Schema.Struct({
   id: Schema.String,
   email: Schema.String,
@@ -142,10 +122,10 @@ export const GoogleUserInfoSchema = Schema.Struct({
   given_name: Schema.optional(Schema.String),
   family_name: Schema.optional(Schema.String),
   picture: Schema.optional(Schema.String),
-  locale: Schema.optional(Schema.String)
-})
+  locale: Schema.optional(Schema.String),
+});
 
-export type GoogleUserInfoResponse = typeof GoogleUserInfoSchema.Type
+export type GoogleUserInfoResponse = typeof GoogleUserInfoSchema.Type;
 
 /**
  * Google Error Response
@@ -153,8 +133,7 @@ export type GoogleUserInfoResponse = typeof GoogleUserInfoSchema.Type
 export const GoogleErrorResponseSchema = Schema.Struct({
   error: Schema.String,
   error_description: Schema.optional(Schema.String),
-})
-export type GoogleErrorResponse = typeof GoogleErrorResponseSchema.Type
+});
 
 /**
  * Google Token Data stored in Redis (indexed by JTI)
@@ -169,8 +148,8 @@ export const GoogleTokenDataSchema = Schema.Struct({
   client_id: Schema.String,
   expires_at: Schema.Number, // Unix timestamp when Google token expires
   updated_at: Schema.Number,
-})
-export type GoogleTokenData = typeof GoogleTokenDataSchema.Type
+});
+export type GoogleTokenData = typeof GoogleTokenDataSchema.Type;
 
 /**
  * JWT Refresh Token Data stored in Redis (indexed by our refresh_token)
@@ -182,8 +161,8 @@ export const JWTRefreshDataSchema = Schema.Struct({
   scope: Schema.String,
   subject: Schema.String,
   created_at: Schema.Number,
-})
-export type JWTRefreshData = typeof JWTRefreshDataSchema.Type
+});
+export type JWTRefreshData = typeof JWTRefreshDataSchema.Type;
 
 /**
  * Legacy Refresh Token Data stored in Redis (for backward compatibility)
@@ -198,8 +177,8 @@ export const RefreshTokenDataSchema = Schema.Struct({
   created_at: Schema.Number,
   expires_in: Schema.Number,
   updated_at: Schema.optional(Schema.Number),
-})
-export type RefreshTokenData = typeof RefreshTokenDataSchema.Type
+});
+export type RefreshTokenData = typeof RefreshTokenDataSchema.Type;
 
 /**
  * Auth Code Data stored in Redis
@@ -209,8 +188,11 @@ export const AuthCodeDataSchema = Schema.Struct({
     tokens: GoogleTokenResponseSchema,
   }),
   subject: Schema.optional(Schema.String),
-})
-export type AuthCodeData = typeof AuthCodeDataSchema.Type
+  // Absolute expiry of the Google access token (ms since epoch). Optional so auth codes
+  // issued before this field existed can still be exchanged.
+  google_expires_at: Schema.optional(Schema.Number),
+});
+export type AuthCodeData = typeof AuthCodeDataSchema.Type;
 
 /**
  * OAuth2 Token Response (what we return to clients)
@@ -221,8 +203,8 @@ export const OAuth2TokenResponseSchema = Schema.Struct({
   expires_in: Schema.Number,
   refresh_token: Schema.String,
   scope: Schema.String,
-})
-export type OAuth2TokenResponse = typeof OAuth2TokenResponseSchema.Type
+});
+export type OAuth2TokenResponse = typeof OAuth2TokenResponseSchema.Type;
 
 /**
  * OAuth2 Error Response
@@ -230,16 +212,13 @@ export type OAuth2TokenResponse = typeof OAuth2TokenResponseSchema.Type
 export const OAuth2ErrorResponseSchema = Schema.Struct({
   error: Schema.String,
   error_description: Schema.optional(Schema.String),
-})
-export type OAuth2ErrorResponse = typeof OAuth2ErrorResponseSchema.Type
+});
+export type OAuth2ErrorResponse = typeof OAuth2ErrorResponseSchema.Type;
 
 /**
  * Helper to create OAuth2 error responses
  */
-export const createOAuth2Error = (
-  error: string,
-  errorDescription?: string
-): OAuth2ErrorResponse => ({
+export const createOAuth2Error = (error: string, errorDescription?: string): OAuth2ErrorResponse => ({
   error,
   error_description: errorDescription,
-})
+});

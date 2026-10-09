@@ -2,16 +2,17 @@
  * Application configuration
  * Uses Effect-based functional configuration from fp/config.ts
  */
-import connectPgSimple from 'connect-pg-simple'
-import session from 'express-session'
-import { loadAppConfigSync, getHydraAdminUrl, getHydraInternalUrl } from './fp/config.js'
+import connectPgSimple from 'connect-pg-simple';
+import session from 'express-session';
+import { loadAppConfigSync, getHydraAdminUrl, getHydraInternalUrl } from './fp/config.js';
+import { syncLogger } from './logging-effect.js';
 
 /**
  * Load configuration from environment
  * Uses Effect Config service with proper validation
  */
 export const appConfig = (() => {
-  const config = loadAppConfigSync()
+  const config = loadAppConfigSync();
 
   // Add legacy compatibility properties
   return {
@@ -33,44 +34,22 @@ export const appConfig = (() => {
     jwtIssuer: config.security.jwtIssuer,
     jwtAudience: config.security.jwtAudience,
     jwtProvider: config.security.jwtProvider,
-  }
-})()
-
-/**
- * Postgres configuration for connection pool
- */
-export const pgConfig = {
-  user: appConfig.database.user,
-  password: appConfig.database.password,
-  database: appConfig.database.database,
-  host: appConfig.database.host,
-  port: appConfig.database.port,
-}
+  };
+})();
 
 /**
  * DCR Master Client ID
  */
-export const DCR_MASTER_CLIENT_ID = appConfig.dcrMasterClientId
-
-/**
- * CSRF token generation
- *
- * Re-exported from setup/index.ts for convenience.
- * Uses csrf-csrf's double-submit cookie pattern.
- *
- * @deprecated Import directly from './setup/index.js' instead
- */
-export { generateCsrfToken, doubleCsrfProtection } from './setup/index.js'
+export const DCR_MASTER_CLIENT_ID = appConfig.dcrMasterClientId;
 
 /**
  * PostgreSQL session store
  */
-export const PgStore = connectPgSimple(session)
+export const PgStore = connectPgSimple(session);
 
 /**
  * Log loaded configuration (without secrets)
  */
-import { syncLogger } from './logging-effect.js'
 syncLogger.info('Configuration loaded', {
   environment: appConfig.environment,
   domain: appConfig.domain,
@@ -82,4 +61,4 @@ syncLogger.info('Configuration loaded', {
   redisPort: appConfig.redisPort,
   hasGoogleCredentials: !!(appConfig.googleClientId && appConfig.googleClientSecret),
   cimd: appConfig.cimd,
-})
+});

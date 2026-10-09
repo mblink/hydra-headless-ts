@@ -6,7 +6,6 @@ lib/
 .env*
 dist/
 google.json
-package-lock.json
 .DS_Store
 
 # Scratch files that hold a live bearer token. A Google ID token is a real
@@ -14,3 +13,4 @@ package-lock.json
 scripts/token.sh
 *.token
 token.txt
+.rollup.cache/

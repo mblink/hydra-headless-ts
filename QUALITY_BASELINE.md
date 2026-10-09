@@ -54,13 +54,13 @@ npm run test:coverage # Generate coverage report
 
 **Core**:
 
-- ESLint 9.x (flat config format)
+- ESLint 10.x (flat config format)
 - @typescript-eslint/parser
 - @typescript-eslint/eslint-plugin
 
 **Plugins**:
 
-- eslint-plugin-import - Import order and organization
+- eslint-plugin-import-x - Import order and organization
 - eslint-plugin-promise - Promise best practices
 - eslint-plugin-functional - FP patterns
 
@@ -99,10 +99,11 @@ npm run lint:fix      # Auto-fix linting issues
 **Settings**:
 
 - Single quotes
-- No semicolons (Effect style)
-- 100 character line width
+- Semicolons
+- 120 character line width
 - 2 space indentation
-- Trailing commas (ES5)
+- Trailing commas everywhere (`all`)
+- Objects keep their written wrapping (`objectWrap: "preserve"`)
 
 ### Formatting Scripts
 
@@ -139,18 +140,7 @@ This single command ensures:
 
 ## CI/CD Integration
 
-Add to your pipeline:
-
-```yaml
-- name: Install Dependencies
-  run: npm install
-
-- name: Validate Code
-  run: npm run validate
-
-- name: Build
-  run: npm run build
-```
+`RC` is tested and built by Woodpecker (`.woodpecker.yml`), which runs `npm run ci` and then builds the Docker image with `npm run build`. Lint warnings, formatting, unused code (knip), type errors and Rollup warnings all fail both; see [What fails CI and the build](LINTING.md#what-fails-ci-and-the-build).
 
 ## Pre-Commit Workflow
 

@@ -60,21 +60,22 @@ steps:
         echo "Build Number: $CI_PIPELINE_NUMBER"
         echo $CI_PIPELINE_NUMBER > /cache/build.txt
 
-  # `npm run ci` == npm-run-all clean lint _tsc test -- same as .drone.yml.
+  # `npm run ci` == npm-run-all clean lint format:check knip _tsc test.
   # `npm run test:ci` names a script package.json has never defined.
   #
   # The image's /node_modules is installed from RC's package.json at image
   # build time, so on its own a PR that changes dependencies is tested
-  # against RC's tree, not its own. `npm install` here builds ./node_modules
-  # from this checkout's package.json; Node resolves it before /node_modules,
-  # and `npm run` puts its .bin ahead of the image's on PATH.
+  # against RC's tree, not its own. `npm ci` here builds ./node_modules from
+  # this checkout's package-lock.json (and fails if it is out of sync with
+  # package.json); Node resolves it before /node_modules, and `npm run` puts
+  # its .bin ahead of the image's on PATH.
   - name: run-tests
     image: *build-image
     # Always re-pull: :latest-arm64 is a moving tag, and the agent would
     # otherwise keep running a stale locally-cached copy of it.
     pull: true
     commands:
-      - npm install --no-audit --no-fund
+      - npm ci --no-audit --no-fund
       - npm run ci
 
   # Builds the runtime image (build/Dockerfile.headless-ts, via compose) and
@@ -97,6 +98,10 @@ steps:
       # automatically once it's on the plugin path.
       - apk add docker-cli-compose docker-cli-buildx
       - bash build/rebuild.sh --ci
+    # Not on pull requests: they run unreviewed branch code, and this step has the Docker socket
+    # and the deploy PAT, and pushes :latest, which is what deployed hosts pull.
+    when:
+      - event: push
 
   # drillster/drone-email is published as a single linux/amd64 manifest -- not a
   # manifest list -- so it cannot be pulled on an arm64 agent at all. It was only

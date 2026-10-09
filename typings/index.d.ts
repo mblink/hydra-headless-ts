@@ -1,11 +1,10 @@
-import "express-session"
+import 'express-session';
 
-declare module "express-session" {
+declare module 'express-session' {
   interface SessionData {
-    state?: string | undefined
-    codeVerifier?: string | undefined
-    codeChallenge?: string | undefined
-    codeChallengeMethod: string | undefined
-    pkceKey: string | undefined
+    /** Set when /oauth2/auth starts a flow so the session (and its id) is persisted */
+    oauthFlowStartedAt?: number;
+    /** Set when a CSRF token is issued so the session (and its id) is persisted */
+    csrfIssuedAt?: number;
   }
 }

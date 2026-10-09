@@ -75,10 +75,15 @@ fi
 PUSH_IMAGE="${REPO_BASE}/${ECR_REPO}"
 BUILD_DATE=$(date -u +"%Y%m%dT%H%M%S")
 GIT_COMMIT=$($GIT_COMMAND rev-parse --short HEAD)
+# The image build fetches exactly this commit (see build/Dockerfile.headless-ts)
+export GIT_SHA=$($GIT_COMMAND rev-parse HEAD)
 BUILD_HASH="${BUILD_DATE}_hydra-headless-ts_${GIT_COMMIT}"
 
-# Which branch the image build clones. An explicit GIT_BRANCH always wins, and
-# in CI it is DRONE_BRANCH, which by construction matches the checked-out tree.
+# Which branch HEAD should match on origin. An explicit GIT_BRANCH always wins. In
+# Woodpecker it is the branch being built: CI_COMMIT_SOURCE_BRANCH for a pull
+# request (CI_COMMIT_BRANCH is the PR's target there), CI_COMMIT_BRANCH for a
+# push. Woodpecker doesn't set Drone's DRONE_BRANCH, so PR builds used to fall
+# through to RC and build RC's code with the PR's Dockerfile.
 #
 # Locally there is no DRONE_BRANCH, and defaulting straight to RC made the tag
 # lie: BUILD_HASH embeds GIT_COMMIT from *your* HEAD, so a run from a feature
@@ -87,7 +92,7 @@ BUILD_HASH="${BUILD_DATE}_hydra-headless-ts_${GIT_COMMIT}"
 # image. Detached HEAD has no branch name to clone (`--abbrev-ref` just says
 # "HEAD"), so that still falls back to RC.
 current_branch=
-if [ -z "${GIT_BRANCH:-}" ] && [ -z "${DRONE_BRANCH:-}" ] && [ $IS_CI -eq 0 ]; then
+if [ -z "${GIT_BRANCH:-}" ] && [ -z "${CI_COMMIT_BRANCH:-}" ] && [ -z "${DRONE_BRANCH:-}" ] && [ $IS_CI -eq 0 ]; then
   # `|| true` and the explicit if: under `set -e` a non-zero last command in an
   # if-body aborts the script, and both of these fail routinely (not a git repo,
   # branch is not detached).
@@ -96,12 +101,12 @@ if [ -z "${GIT_BRANCH:-}" ] && [ -z "${DRONE_BRANCH:-}" ] && [ $IS_CI -eq 0 ]; t
     current_branch=
   fi
 fi
-export GIT_BRANCH="${GIT_BRANCH:-${DRONE_BRANCH:-${current_branch:-RC}}}"
+export GIT_BRANCH="${GIT_BRANCH:-${CI_COMMIT_SOURCE_BRANCH:-${CI_COMMIT_BRANCH:-${DRONE_BRANCH:-${current_branch:-RC}}}}}"
 echo "Building from branch: ${GIT_BRANCH} (${GIT_COMMIT})"
 
 # Refuse to publish an image whose contents do not match the tag it gets.
 #
-# build/Dockerfile.headless-ts clones $GIT_BRANCH from GitHub rather than
+# build/Dockerfile.headless-ts fetches $GIT_SHA from GitHub rather than
 # copying this working tree, so the local checkout influences the *tag* but
 # almost none of the *contents*. Three ways that diverges:
 #
@@ -233,7 +238,8 @@ echo "Build and push complete: ${PUSH_IMAGE}:${BUILD_HASH}"
 # runs on arm64 agents, so there is exactly one arch to keep this tag pointed
 # at; no arch suffix needed the way oddjob's build.sh uses one (that script
 # still tags both amd64 and arm64 builds from the same pipeline).
-if [ $IS_CI -eq 1 ]; then
+# Pushes only, never a pull request's branch: deployed hosts pull :latest.
+if [ $IS_CI -eq 1 ] && [ "${CI_PIPELINE_EVENT:-}" = "push" ]; then
   docker push "${PUSH_IMAGE}":latest
   echo "Build and push complete: ${PUSH_IMAGE}:latest"
 fi

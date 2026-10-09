@@ -1,5 +1,6 @@
 import tseslint from '@typescript-eslint/eslint-plugin'
 import tsparser from '@typescript-eslint/parser'
+import { createTypeScriptImportResolver } from 'eslint-import-resolver-typescript'
 import importPlugin from 'eslint-plugin-import-x'
 import promisePlugin from 'eslint-plugin-promise'
 import functionalPlugin from 'eslint-plugin-functional'
@@ -14,6 +15,7 @@ export default [
       '*.config.js',
       'rollup.config.js',
       '.tsed/**',
+      '.rollup.cache/**',
     ],
   },
   {
@@ -42,6 +44,10 @@ export default [
       'import-x': importPlugin,
       promise: promisePlugin,
       functional: functionalPlugin,
+    },
+    settings: {
+      // Resolve `.js` specifiers to their `.ts` sources (needed for no-cycle and friends)
+      'import-x/resolver-next': [createTypeScriptImportResolver({ project: './tsconfig.json' })],
     },
     rules: {
       // TypeScript specific rules
@@ -126,6 +132,14 @@ export default [
       '@typescript-eslint/no-non-null-assertion': 'off',
       'no-console': 'off',
       '@typescript-eslint/no-floating-promises': 'off',
+      'functional/no-loop-statements': 'off',
+    },
+  },
+  {
+    // Command-line tools and usage examples print to the terminal
+    files: ['src/cli*.ts', 'src/api/oauth2-example.ts'],
+    rules: {
+      'no-console': 'off',
     },
   },
 ]

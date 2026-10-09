@@ -1,5 +1,5 @@
-import Html from '@kitajs/html'
-import { Layout } from './components/Layout.js'
+import Html from '@kitajs/html';
+import { Layout } from './components/Layout.js';
 
 /**
  * OAuth2 Error Page
@@ -26,9 +26,9 @@ import { Layout } from './components/Layout.js'
  */
 export interface ErrorProps {
   /** User-friendly error message */
-  message: string
+  message: string;
   /** Stack trace (only shown in development environment) */
-  stack?: string
+  stack?: string;
 }
 
 export function ErrorPage({ message, stack }: ErrorProps): string {
@@ -45,5 +45,5 @@ export function ErrorPage({ message, stack }: ErrorProps): string {
         )}
       </>
     ),
-  })
+  });
 }

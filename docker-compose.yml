@@ -107,14 +107,13 @@ services:
       platforms:
         - linux/arm64
       args:
-        - GIT_BRANCH=${GIT_BRANCH}
+        - GIT_SHA=${GIT_SHA}
       # Replaces the old GIT_TOKEN build-arg: a build-arg is recorded verbatim
       # in `docker history`, so the token travelled with the image. build/
       # rebuild.sh writes the askpass script and exports GIT_ASKPASS_FILE.
       secrets:
         - github_askpass
     environment:
-      - NODE_TLS_REJECT_UNAUTHORIZED=0
       - NODE_ENV=development
     depends_on:
       - hydra

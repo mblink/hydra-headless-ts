@@ -1,19 +1,20 @@
-import { Effect, Either, Layer } from 'effect'
-import { describe, it, expect, vi, beforeEach, assert } from 'vitest'
-import { decodeJwt } from 'jose'
-import { isEmailAllowed } from './emailAllowlist.js'
-import { processRefreshTokenGrant, processAuthCodeGrant } from './token.js'
-import { RedisService } from './redis.js'
-import { GoogleOAuthService } from './google.js'
-import { JWTService } from './jwt.js'
-import { UnauthorizedEmail, ParseError } from '../errors.js'
-import type { JWTRefreshData, GoogleTokenData, AuthCodeData, PKCEState } from '../domain.js'
+import crypto from 'crypto';
+import { Effect, Either, Layer } from 'effect';
+import { decodeJwt } from 'jose';
+import { describe, it, expect, vi, beforeEach, assert } from 'vitest';
+import { InvalidGrant, UnauthorizedEmail, ParseError } from '../errors.js';
+import { isEmailAllowed } from './emailAllowlist.js';
+import { GoogleOAuthService } from './google.js';
+import { JWTService } from './jwt.js';
+import { RedisService } from './redis.js';
+import { processRefreshTokenGrant, processAuthCodeGrant } from './token.js';
+import type { JWTRefreshData, GoogleTokenData, AuthCodeData, PKCEState } from '../domain.js';
 
-vi.mock('./emailAllowlist.js', () => ({ isEmailAllowed: vi.fn() }))
-vi.mock('jose', () => ({ decodeJwt: vi.fn() }))
+vi.mock('./emailAllowlist.js', () => ({ isEmailAllowed: vi.fn() }));
+vi.mock('jose', () => ({ decodeJwt: vi.fn() }));
 vi.mock('../../logging-effect.js', () => ({
   syncLogger: { info: vi.fn(), error: vi.fn(), debug: vi.fn(), warn: vi.fn() },
-}))
+}));
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -25,7 +26,7 @@ const validJWTRefreshData: JWTRefreshData = {
   scope: 'openid',
   subject: 'user-123',
   created_at: Date.now(),
-}
+};
 
 const validGoogleTokenData: GoogleTokenData = {
   google_access_token: 'ga-access-token',
@@ -36,7 +37,7 @@ const validGoogleTokenData: GoogleTokenData = {
   client_id: 'test-client',
   expires_at: Date.now() + 3_600_000, // 1 hour from now — no refresh needed
   updated_at: Date.now(),
-}
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -44,11 +45,12 @@ const validGoogleTokenData: GoogleTokenData = {
 
 const makeTestRedis = (
   jwtRefreshData = validJWTRefreshData,
-  googleTokenData: GoogleTokenData = validGoogleTokenData
+  googleTokenData: GoogleTokenData = validGoogleTokenData,
 ): RedisService => {
-  const getJSON = vi.fn()
-    .mockReturnValueOnce(Effect.succeed(jwtRefreshData))   // Step 2: getJWTRefresh
-    .mockReturnValueOnce(Effect.succeed(googleTokenData))  // Step 3: getGoogleToken
+  const getJSON = vi
+    .fn()
+    .mockReturnValueOnce(Effect.succeed(jwtRefreshData)) // Step 2: getJWTRefresh
+    .mockReturnValueOnce(Effect.succeed(googleTokenData)); // Step 3: getGoogleToken
   return {
     get: () => Effect.succeed(null),
     getJSON,
@@ -56,8 +58,8 @@ const makeTestRedis = (
     setJSON: () => Effect.succeed('OK' as const),
     del: () => Effect.succeed(1),
     exists: () => Effect.succeed(1),
-  } as unknown as RedisService
-}
+  } as unknown as RedisService;
+};
 
 // Stub for GoogleOAuthService — only used when token needs refresh (expires_at < now+5min).
 // Our fixture sets expires_at 1hr from now so refreshToken is never called in these tests.
@@ -67,24 +69,21 @@ const stubGoogleOAuth = {
   getTokensFromCode: () => Effect.fail(new ParseError({ message: 'stub' })),
   refreshAccessToken: () => Effect.fail(new ParseError({ message: 'stub' })),
   getUserInfo: () => Effect.fail(new ParseError({ message: 'stub' })),
-} as unknown as GoogleOAuthService
+} as unknown as GoogleOAuthService;
 
 // Stub for JWTService — only called after the email check passes.
 const stubJWT = {
-  sign: () => Effect.succeed('stub-access-token'),
+  sign: vi.fn(() => Effect.succeed('stub-access-token')),
   verify: () => Effect.fail(new ParseError({ message: 'stub' })),
   generateJti: () => Effect.succeed('stub-jti'),
   getJWKS: () => Effect.fail(new ParseError({ message: 'stub' })),
-} as unknown as JWTService
+} as unknown as JWTService;
 
 const run = (redis: RedisService) => {
   const layer = Layer.merge(
-    Layer.merge(
-      Layer.succeed(RedisService, redis),
-      Layer.succeed(GoogleOAuthService, stubGoogleOAuth)
-    ),
-    Layer.succeed(JWTService, stubJWT)
-  )
+    Layer.merge(Layer.succeed(RedisService, redis), Layer.succeed(GoogleOAuthService, stubGoogleOAuth)),
+    Layer.succeed(JWTService, stubJWT),
+  );
   return Effect.runPromise(
     Effect.either(
       Effect.provide(
@@ -93,11 +92,11 @@ const run = (redis: RedisService) => {
           refresh_token: 'test-refresh-token',
           client_id: 'test-client',
         }),
-        layer
-      )
-    )
-  )
-}
+        layer,
+      ),
+    ),
+  );
+};
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -107,18 +106,17 @@ const run = (redis: RedisService) => {
 // processAuthCodeGrant email check fixtures + helpers
 // ---------------------------------------------------------------------------
 
-// PKCE: plain method so verifier === challenge (no hashing needed in test)
-const CODE_VERIFIER = 'test-verifier-abc123'
+const CODE_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
 
 const validPKCEState: PKCEState = {
-  code_challenge: CODE_VERIFIER,
-  code_challenge_method: 'plain',
+  code_challenge: crypto.createHash('sha256').update(CODE_VERIFIER).digest('base64url'),
+  code_challenge_method: 'S256',
   scope: 'openid',
   state: 'test-state',
   redirect_uri: 'https://client.example.com/callback',
   client_id: 'test-client',
   timestamp: Date.now(),
-}
+};
 
 const validAuthCodeData: AuthCodeData = {
   google_tokens: {
@@ -131,12 +129,15 @@ const validAuthCodeData: AuthCodeData = {
       token_type: 'Bearer',
     },
   },
-}
+  // Google account id, stored by the callback from the verified ID token
+  subject: 'google-user-123',
+};
 
 const makeAuthCodeRedis = (authCodeData: AuthCodeData = validAuthCodeData): RedisService => {
-  const getJSON = vi.fn()
-    .mockReturnValueOnce(Effect.succeed(authCodeData))  // getAuthCode
-    .mockReturnValueOnce(Effect.succeed(validPKCEState)) // getAuthCodeState
+  const getJSON = vi
+    .fn()
+    .mockReturnValueOnce(Effect.succeed(authCodeData)) // getAuthCode
+    .mockReturnValueOnce(Effect.succeed(validPKCEState)); // getAuthCodeState
   return {
     get: () => Effect.succeed(null),
     getJSON,
@@ -144,14 +145,11 @@ const makeAuthCodeRedis = (authCodeData: AuthCodeData = validAuthCodeData): Redi
     setJSON: () => Effect.succeed('OK' as const),
     del: () => Effect.succeed(1),
     exists: () => Effect.succeed(1),
-  } as unknown as RedisService
-}
+  } as unknown as RedisService;
+};
 
 const runAuthCodeGrant = (redis: RedisService) => {
-  const layer = Layer.merge(
-    Layer.succeed(RedisService, redis),
-    Layer.succeed(JWTService, stubJWT)
-  )
+  const layer = Layer.merge(Layer.succeed(RedisService, redis), Layer.succeed(JWTService, stubJWT));
   return Effect.runPromise(
     Effect.either(
       Effect.provide(
@@ -162,140 +160,202 @@ const runAuthCodeGrant = (redis: RedisService) => {
           redirect_uri: 'https://client.example.com/callback',
           client_id: 'test-client',
         }),
-        layer
-      )
-    )
-  )
-}
+        layer,
+      ),
+    ),
+  );
+};
 
 describe('processAuthCodeGrant email choke point', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-  })
+    vi.clearAllMocks();
+  });
 
   it('rejects when the google_id_token contains a blocked email', async () => {
-    vi.mocked(isEmailAllowed).mockReturnValue(false)
-    vi.mocked(decodeJwt).mockReturnValue({ email: 'blocked@gmail.com' } as any)
+    vi.mocked(isEmailAllowed).mockReturnValue(false);
+    vi.mocked(decodeJwt).mockReturnValue({ email: 'blocked@gmail.com' } as any);
 
-    const result = await runAuthCodeGrant(makeAuthCodeRedis())
+    const result = await runAuthCodeGrant(makeAuthCodeRedis());
 
-    expect(result._tag).toBe('Left')
-    assert(Either.isLeft(result))
-    expect(result.left).toBeInstanceOf(UnauthorizedEmail)
-    expect((result.left as UnauthorizedEmail).email).toBe('blocked@gmail.com')
-    expect(isEmailAllowed).toHaveBeenCalledWith('blocked@gmail.com')
-  })
+    expect(result._tag).toBe('Left');
+    assert(Either.isLeft(result));
+    expect(result.left).toBeInstanceOf(UnauthorizedEmail);
+    expect((result.left as UnauthorizedEmail).email).toBe('blocked@gmail.com');
+    expect(isEmailAllowed).toHaveBeenCalledWith('blocked@gmail.com');
+  });
 
   it('rejects with <missing> when the id_token payload has no email field', async () => {
-    vi.mocked(decodeJwt).mockReturnValue({} as any)
+    vi.mocked(decodeJwt).mockReturnValue({} as any);
 
-    const result = await runAuthCodeGrant(makeAuthCodeRedis())
+    const result = await runAuthCodeGrant(makeAuthCodeRedis());
 
-    expect(result._tag).toBe('Left')
-    assert(Either.isLeft(result))
-    expect(result.left).toBeInstanceOf(UnauthorizedEmail)
-    expect((result.left as UnauthorizedEmail).email).toBe('<missing>')
-    expect(isEmailAllowed).not.toHaveBeenCalled()
-  })
+    expect(result._tag).toBe('Left');
+    assert(Either.isLeft(result));
+    expect(result.left).toBeInstanceOf(UnauthorizedEmail);
+    expect((result.left as UnauthorizedEmail).email).toBe('<missing>');
+    expect(isEmailAllowed).not.toHaveBeenCalled();
+  });
 
   it('skips email check and proceeds when id_token is absent', async () => {
     const dataWithoutIdToken: AuthCodeData = {
+      ...validAuthCodeData,
       google_tokens: {
         tokens: { ...validAuthCodeData.google_tokens.tokens, id_token: undefined },
       },
-    }
-    const result = await runAuthCodeGrant(makeAuthCodeRedis(dataWithoutIdToken))
+    };
+    const result = await runAuthCodeGrant(makeAuthCodeRedis(dataWithoutIdToken));
 
-    expect(result._tag).toBe('Right')
-    expect(decodeJwt).not.toHaveBeenCalled()
-    expect(isEmailAllowed).not.toHaveBeenCalled()
-  })
+    expect(result._tag).toBe('Right');
+    expect(decodeJwt).not.toHaveBeenCalled();
+    expect(isEmailAllowed).not.toHaveBeenCalled();
+  });
 
   it('succeeds when email is in the allowlist', async () => {
-    vi.mocked(isEmailAllowed).mockReturnValue(true)
-    vi.mocked(decodeJwt).mockReturnValue({ email: 'user@bondlink.com' } as any)
+    vi.mocked(isEmailAllowed).mockReturnValue(true);
+    vi.mocked(decodeJwt).mockReturnValue({ email: 'user@bondlink.com' } as any);
 
-    const result = await runAuthCodeGrant(makeAuthCodeRedis())
+    const result = await runAuthCodeGrant(makeAuthCodeRedis());
 
-    expect(result._tag).toBe('Right')
-    assert(Either.isRight(result))
+    expect(result._tag).toBe('Right');
+    assert(Either.isRight(result));
     expect(result.right).toMatchObject({
       access_token: 'stub-access-token',
       token_type: 'Bearer',
       scope: 'openid',
-    })
-    expect(isEmailAllowed).toHaveBeenCalledWith('user@bondlink.com')
-  })
-})
+    });
+    expect(isEmailAllowed).toHaveBeenCalledWith('user@bondlink.com');
+  });
+});
+
+describe('processAuthCodeGrant subject', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(isEmailAllowed).mockReturnValue(true);
+    vi.mocked(decodeJwt).mockReturnValue({ email: 'user@bondlink.com' } as any);
+  });
+
+  it('signs the token for the Google account id', async () => {
+    const result = await runAuthCodeGrant(makeAuthCodeRedis());
+
+    expect(result._tag).toBe('Right');
+    expect(stubJWT.sign).toHaveBeenCalledWith(
+      expect.objectContaining({ sub: 'google-user-123' }),
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it('rejects an auth code without an authenticated subject instead of using a placeholder', async () => {
+    const { subject: _, ...withoutSubject } = validAuthCodeData;
+
+    const result = await runAuthCodeGrant(makeAuthCodeRedis(withoutSubject));
+
+    expect(result._tag).toBe('Left');
+    assert(Either.isLeft(result));
+    expect(result.left).toBeInstanceOf(InvalidGrant);
+  });
+});
+
+describe('processAuthCodeGrant Google token lifetime', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(isEmailAllowed).mockReturnValue(true);
+    vi.mocked(decodeJwt).mockReturnValue({ email: 'user@bondlink.com' } as any);
+  });
+
+  it('measures the lifetime at exchange time from google_expires_at', async () => {
+    // The stored expires_in (3600) is stale; the absolute expiry is what counts
+    const googleExpiresAt = Date.now() + 1000 * 1000;
+
+    const result = await runAuthCodeGrant(
+      makeAuthCodeRedis({ ...validAuthCodeData, google_expires_at: googleExpiresAt }),
+    );
+
+    assert(Either.isRight(result));
+    expect(result.right.expires_in).toBeGreaterThan(990);
+    expect(result.right.expires_in).toBeLessThanOrEqual(1000);
+    expect(stubJWT.sign).toHaveBeenCalledWith(expect.anything(), result.right.expires_in, expect.anything());
+  });
+
+  it('rejects the exchange when the Google token has already expired', async () => {
+    const result = await runAuthCodeGrant(
+      makeAuthCodeRedis({ ...validAuthCodeData, google_expires_at: Date.now() - 1000 }),
+    );
+
+    assert(Either.isLeft(result));
+    expect(result.left).toBeInstanceOf(InvalidGrant);
+    expect(stubJWT.sign).not.toHaveBeenCalled();
+  });
+});
 
 describe('processRefreshTokenGrant email choke point', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-  })
+    vi.clearAllMocks();
+  });
 
   it('rejects when the stored google_id_token contains a blocked email', async () => {
-    vi.mocked(isEmailAllowed).mockReturnValue(false)
-    vi.mocked(decodeJwt).mockReturnValue({ email: 'blocked@gmail.com' } as any)
+    vi.mocked(isEmailAllowed).mockReturnValue(false);
+    vi.mocked(decodeJwt).mockReturnValue({ email: 'blocked@gmail.com' } as any);
 
-    const redis = makeTestRedis()
-    const result = await run(redis)
+    const redis = makeTestRedis();
+    const result = await run(redis);
 
-    expect(result._tag).toBe('Left')
-    assert(Either.isLeft(result))
-    expect(result.left).toBeInstanceOf(UnauthorizedEmail)
-    expect((result.left as UnauthorizedEmail).email).toBe('blocked@gmail.com')
-    expect(isEmailAllowed).toHaveBeenCalledWith('blocked@gmail.com')
-  })
+    expect(result._tag).toBe('Left');
+    assert(Either.isLeft(result));
+    expect(result.left).toBeInstanceOf(UnauthorizedEmail);
+    expect((result.left as UnauthorizedEmail).email).toBe('blocked@gmail.com');
+    expect(isEmailAllowed).toHaveBeenCalledWith('blocked@gmail.com');
+  });
 
   it('rejects with <missing> when the ID token payload has no email field', async () => {
-    vi.mocked(decodeJwt).mockReturnValue({} as any) // no email field
+    vi.mocked(decodeJwt).mockReturnValue({} as any); // no email field
 
-    const redis = makeTestRedis()
-    const result = await run(redis)
+    const redis = makeTestRedis();
+    const result = await run(redis);
 
-    expect(result._tag).toBe('Left')
-    assert(Either.isLeft(result))
-    expect(result.left).toBeInstanceOf(UnauthorizedEmail)
-    expect((result.left as UnauthorizedEmail).email).toBe('<missing>')
-    expect(isEmailAllowed).not.toHaveBeenCalled()
-  })
+    expect(result._tag).toBe('Left');
+    assert(Either.isLeft(result));
+    expect(result.left).toBeInstanceOf(UnauthorizedEmail);
+    expect((result.left as UnauthorizedEmail).email).toBe('<missing>');
+    expect(isEmailAllowed).not.toHaveBeenCalled();
+  });
 
   it('skips the email check and succeeds when google_id_token is absent', async () => {
     // Store token data without an id_token — email check is entirely skipped
     const tokenDataWithoutIdToken: GoogleTokenData = {
       ...validGoogleTokenData,
       google_id_token: undefined,
-    }
+    };
 
-    const redis = makeTestRedis(validJWTRefreshData, tokenDataWithoutIdToken)
-    const result = await run(redis)
+    const redis = makeTestRedis(validJWTRefreshData, tokenDataWithoutIdToken);
+    const result = await run(redis);
 
-    expect(result._tag).toBe('Right')
-    assert(Either.isRight(result))
+    expect(result._tag).toBe('Right');
+    assert(Either.isRight(result));
     expect(result.right).toMatchObject({
       access_token: 'stub-access-token',
       token_type: 'Bearer',
       refresh_token: 'test-refresh-token',
-    })
-    expect(decodeJwt).not.toHaveBeenCalled()
-    expect(isEmailAllowed).not.toHaveBeenCalled()
-  })
+    });
+    expect(decodeJwt).not.toHaveBeenCalled();
+    expect(isEmailAllowed).not.toHaveBeenCalled();
+  });
 
   it('succeeds and returns a token response when email is in the allowlist', async () => {
-    vi.mocked(isEmailAllowed).mockReturnValue(true)
-    vi.mocked(decodeJwt).mockReturnValue({ email: 'user@bondlink.com' } as any)
+    vi.mocked(isEmailAllowed).mockReturnValue(true);
+    vi.mocked(decodeJwt).mockReturnValue({ email: 'user@bondlink.com' } as any);
 
-    const redis = makeTestRedis()
-    const result = await run(redis)
+    const redis = makeTestRedis();
+    const result = await run(redis);
 
-    expect(result._tag).toBe('Right')
-    assert(Either.isRight(result))
+    expect(result._tag).toBe('Right');
+    assert(Either.isRight(result));
     expect(result.right).toMatchObject({
       access_token: 'stub-access-token',
       token_type: 'Bearer',
       refresh_token: 'test-refresh-token',
       scope: 'openid',
-    })
-    expect(isEmailAllowed).toHaveBeenCalledWith('user@bondlink.com')
-  })
-})
+    });
+    expect(isEmailAllowed).toHaveBeenCalledWith('user@bondlink.com');
+  });
+});

@@ -38,10 +38,6 @@
 upstream public_api {
   server 10.1.2.247:4444;
 }
-upstream admin_api {
-  server 10.1.2.247:4445;
-}
-
 upstream mcp-tools {
   server 10.1.2.247:9001;
 }
@@ -80,20 +76,6 @@ server {
   add_header 'Access-Control-Allow-Credentials' 'true';
   location ~ ^(.+)/$ {
     return 301 $scheme://$host$1;
-  }
-
-  location ~ ^/(admin|clients|keys|health|metrics|version|oauth2/auth/requests|oauth2/introspect|oauth2/flush) {
-    include /etc/nginx/cors_headers;
-    include /etc/nginx/options_request;
-    proxy_pass http://admin_api;
-    proxy_redirect    off;
-    proxy_set_header Cookie $http_cookie;
-    proxy_set_header  Host               $host;
-    proxy_set_header  X-Real-IP          $remote_addr;
-    proxy_set_header  X-Forwarded-For    $proxy_add_x_forwarded_for;
-    proxy_set_header  X-Forwarded-Proto  $http_x_forwarded_proto;
-    proxy_set_header X-CSRF-TOKEN $http_x_csrf_token;
-    proxy_set_header X-XSRF-TOKEN $http_x_xsrf_token;
   }
 
   # Composed by the app (not proxied straight to Hydra) so it can advertise
