@@ -90,6 +90,7 @@ services:
     # file again; volatile-lru (not allkeys-lru) since eviction should only
     # ever hit already-expiring keys, never a key that isn't volatile.
     command: redis-server --maxmemory ${REDIS_MAXMEMORY:-1gb} --maxmemory-policy volatile-lru
+    restart: unless-stopped
     ports:
       - 6379:6379
     networks:
