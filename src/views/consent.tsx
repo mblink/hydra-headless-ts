@@ -59,8 +59,8 @@ export function Consent({
       <>
         <h1>Authorize {client?.client_name ?? 'Application'}</h1>
         <p>
-          Hi there! The application <strong>{client?.client_name ?? 'Unknown'}</strong> wants
-          access to your data. The following permissions are requested:
+          Hi there! The application <strong>{client?.client_name ?? 'Unknown'}</strong> wants access
+          to your data. The following permissions are requested:
         </p>
 
         {requestedScope.length > 0 && (

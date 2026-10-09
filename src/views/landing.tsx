@@ -38,8 +38,8 @@ export function Index({ title = 'OAuth 2.0 & OpenID Connect' }: IndexProps): str
       <>
         <h1>{title}</h1>
         <p>
-          This is the login & consent provider for the OAuth 2.0 Authorization Server powered by
-          Ory Hydra.
+          This is the login & consent provider for the OAuth 2.0 Authorization Server powered by Ory
+          Hydra.
         </p>
         <p>
           <strong>Architecture:</strong> Bridges Hydra (with DCR support) and Google OAuth (without

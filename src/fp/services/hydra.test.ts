@@ -12,7 +12,6 @@ import type {
 } from '@ory/client-fetch'
 import type { OAuth2Api } from '@ory/hydra-client-fetch/dist/index.js'
 
-
 //TODO: Fix Tests mocking login request
 // Mock OAuth2Api client
 const createMockOAuth2Api = (): OAuth2Api => {
@@ -46,10 +45,11 @@ describe('HydraService', () => {
         request_url: 'https://auth.example.com/oauth2/auth',
         skip: false,
         subject: '',
-
       }
 
-      vi.mocked(mockClient.getOAuth2LoginRequest).mockResolvedValue(mockLoginRequest as unknown as Awaited<ReturnType<OAuth2Api['getOAuth2LoginRequest']>>)
+      vi.mocked(mockClient.getOAuth2LoginRequest).mockResolvedValue(
+        mockLoginRequest as unknown as Awaited<ReturnType<OAuth2Api['getOAuth2LoginRequest']>>
+      )
 
       const program = hydraService.getLoginRequest('challenge-123')
       const result = await Effect.runPromise(program)
@@ -83,9 +83,7 @@ describe('HydraService', () => {
     })
 
     it('should handle network errors', async () => {
-      vi.mocked(mockClient.getOAuth2LoginRequest).mockRejectedValue(
-        new Error('Network timeout')
-      )
+      vi.mocked(mockClient.getOAuth2LoginRequest).mockRejectedValue(new Error('Network timeout'))
 
       const program = hydraService.getLoginRequest('challenge-123')
       const result = await Effect.runPromise(Effect.either(program))
@@ -126,9 +124,7 @@ describe('HydraService', () => {
         subject: 'user-123',
       }
 
-      vi.mocked(mockClient.acceptOAuth2LoginRequest).mockRejectedValue(
-        new Error('Invalid subject')
-      )
+      vi.mocked(mockClient.acceptOAuth2LoginRequest).mockRejectedValue(new Error('Invalid subject'))
 
       const program = hydraService.acceptLoginRequest('challenge-123', acceptBody)
       const result = await Effect.runPromise(Effect.either(program))
@@ -150,7 +146,9 @@ describe('HydraService', () => {
         subject: 'user-123',
       }
 
-      vi.mocked(mockClient.getOAuth2ConsentRequest).mockResolvedValue(mockConsentRequest as unknown as Awaited<ReturnType<OAuth2Api['getOAuth2ConsentRequest']>>)
+      vi.mocked(mockClient.getOAuth2ConsentRequest).mockResolvedValue(
+        mockConsentRequest as unknown as Awaited<ReturnType<OAuth2Api['getOAuth2ConsentRequest']>>
+      )
 
       const program = hydraService.getConsentRequest('consent-challenge-123')
       const result = await Effect.runPromise(program)
@@ -213,7 +211,9 @@ describe('HydraService', () => {
         sid: 'session-123',
       }
 
-      vi.mocked(mockClient.getOAuth2LogoutRequest).mockResolvedValue(mockLogoutRequest as unknown as Awaited<ReturnType<OAuth2Api['getOAuth2LogoutRequest']>>)
+      vi.mocked(mockClient.getOAuth2LogoutRequest).mockResolvedValue(
+        mockLogoutRequest as unknown as Awaited<ReturnType<OAuth2Api['getOAuth2LogoutRequest']>>
+      )
 
       const program = hydraService.getLogoutRequest('logout-challenge-123')
       const result = await Effect.runPromise(program)

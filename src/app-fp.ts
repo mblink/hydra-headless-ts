@@ -107,7 +107,6 @@ app.use(
 app.use('/oauth2/register', proxyMiddleware)
 app.use('/oauth2/auth', proxyMiddleware)
 
-
 app.use(cookieParser(appConfig.security.cookieSecret))
 
 app.use(favicon(path.join(__dirname, '..', 'public', 'favicon.ico')))
@@ -137,12 +136,16 @@ app.use('/authz', createAuthzRouter(serviceLayer))
 // Error handlers (same as original)
 app.use((req, res) => {
   syncLogger.warn('404 in app-fp.ts', { url: req.originalUrl, headers: req.headers })
-  res.status(404).send("Sorry, that page doesn't exist!");
+  res.status(404).send("Sorry, that page doesn't exist!")
 })
 
 // Express only treats middleware with four parameters as an error handler
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  syncLogger.error('ApplicationError', { url: req.originalUrl, message: err.message, stack: err.stack })
+  syncLogger.error('ApplicationError', {
+    url: req.originalUrl,
+    message: err.message,
+    stack: err.stack,
+  })
   // Once the response has started, Express's default handler has to close the connection
   if (res.headersSent) {
     next(err)

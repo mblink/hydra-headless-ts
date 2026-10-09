@@ -6,14 +6,7 @@
 import crypto from 'crypto'
 import axios from 'axios'
 import { Effect, Context, Layer } from 'effect'
-import {
-  SignJWT,
-  jwtVerify,
-  importJWK,
-  createRemoteJWKSet,
-  type JWTPayload,
-  type JWK,
-} from 'jose'
+import { SignJWT, jwtVerify, importJWK, createRemoteJWKSet, type JWTPayload, type JWK } from 'jose'
 import { syncLogger } from '../../logging-effect.js'
 import { ParseError, UnauthorizedEmail, type AppError } from '../errors.js'
 import { isEmailAllowed } from './emailAllowlist.js'
@@ -192,7 +185,6 @@ const fetchHydraKey = async (hydraAdminUrl: string): Promise<HydraKey> => {
   }
 }
 
-
 /**
  * Create JWT Service implementation
  */
@@ -242,7 +234,6 @@ export const makeJWTService = (config: JWTConfig): JWTService => {
     sign: (claims, expiresIn, googleIdToken) =>
       Effect.tryPromise({
         try: async () => {
-
           // Google mode: Return Google's ID token directly
           if (config.provider === 'google') {
             if (!googleIdToken) {
@@ -298,9 +289,10 @@ export const makeJWTService = (config: JWTConfig): JWTService => {
         const claims = yield* Effect.tryPromise({
           try: async () => {
             // Use provider's public JWKS for verification
-            const jwksUrl = config.provider === 'google'
-              ? 'https://www.googleapis.com/oauth2/v3/certs'
-              : `${config.hydraPublicUrl}/.well-known/jwks.json`
+            const jwksUrl =
+              config.provider === 'google'
+                ? 'https://www.googleapis.com/oauth2/v3/certs'
+                : `${config.hydraPublicUrl}/.well-known/jwks.json`
 
             const JWKS = createRemoteJWKSet(new URL(jwksUrl))
 
@@ -313,9 +305,7 @@ export const makeJWTService = (config: JWTConfig): JWTService => {
             // claim matters: the previous message said only "Missing required
             // claims in JWT", which for a Google token was both unactionable and
             // misleading, since the claim it wanted could never be present.
-            const missing = REQUIRED_CLAIMS[config.provider].filter(
-              (claim) => !payload[claim]
-            )
+            const missing = REQUIRED_CLAIMS[config.provider].filter((claim) => !payload[claim])
             if (missing.length > 0) {
               throw new Error(
                 `Missing required claims for provider '${config.provider}': ${missing.join(', ')}`
@@ -337,16 +327,16 @@ export const makeJWTService = (config: JWTConfig): JWTService => {
         return claims
       }),
 
-    generateJti: () =>
-      Effect.sync(() => crypto.randomBytes(16).toString('base64url')),
+    generateJti: () => Effect.sync(() => crypto.randomBytes(16).toString('base64url')),
 
     getJWKS: () =>
       Effect.tryPromise({
         try: async () => {
           // Return provider's public JWKS URL for clients to use
-          const jwksUrl = config.provider === 'google'
-            ? 'https://www.googleapis.com/oauth2/v3/certs'
-            : `${config.hydraPublicUrl}/.well-known/jwks.json`
+          const jwksUrl =
+            config.provider === 'google'
+              ? 'https://www.googleapis.com/oauth2/v3/certs'
+              : `${config.hydraPublicUrl}/.well-known/jwks.json`
 
           const response = await axios.get<JWKS>(jwksUrl)
 

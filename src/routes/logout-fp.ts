@@ -39,15 +39,8 @@ const mapErrorToHttp = (error: AppError): { status: number; message: string } =>
 /**
  * GET /logout - Display logout confirmation form
  */
-const createLogoutGetHandler = (
-  serviceLayer: Layer.Layer<HydraService>,
-  config: LogoutConfig
-) => {
-  return async (
-    req: express.Request,
-    res: express.Response,
-    next: express.NextFunction
-  ) => {
+const createLogoutGetHandler = (serviceLayer: Layer.Layer<HydraService>, config: LogoutConfig) => {
+  return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const challenge = String(req.query.logout_challenge)
 
     if (!challenge) {
@@ -55,10 +48,7 @@ const createLogoutGetHandler = (
       return
     }
 
-    const program = pipe(
-      getLogoutInfo(challenge),
-      Effect.provide(serviceLayer)
-    )
+    const program = pipe(getLogoutInfo(challenge), Effect.provide(serviceLayer))
 
     const result = await Effect.runPromise(Effect.either(program))
 
@@ -96,10 +86,7 @@ const createLogoutPostHandler = (serviceLayer: Layer.Layer<HydraService>) => {
 
     // User chose not to logout
     if (submit === 'No') {
-      const program = pipe(
-        rejectLogout(challenge),
-        Effect.provide(serviceLayer)
-      )
+      const program = pipe(rejectLogout(challenge), Effect.provide(serviceLayer))
 
       const result = await Effect.runPromise(Effect.either(program))
 
@@ -113,10 +100,7 @@ const createLogoutPostHandler = (serviceLayer: Layer.Layer<HydraService>) => {
     }
 
     // User agreed to logout
-    const program = pipe(
-      acceptLogout(challenge),
-      Effect.provide(serviceLayer)
-    )
+    const program = pipe(acceptLogout(challenge), Effect.provide(serviceLayer))
 
     const result = await Effect.runPromise(Effect.either(program))
 

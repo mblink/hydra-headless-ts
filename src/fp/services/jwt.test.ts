@@ -67,9 +67,7 @@ describe('JWTService email choke points', () => {
 
     it('rejects when googleIdToken is absent', async () => {
       const service = makeJWTService(googleConfig)
-      const result = await Effect.runPromise(
-        Effect.either(service.sign(baseClaims, 3600))
-      )
+      const result = await Effect.runPromise(Effect.either(service.sign(baseClaims, 3600)))
 
       expect(result._tag).toBe('Left')
       assert(Either.isLeft(result))
@@ -99,9 +97,7 @@ describe('JWTService email choke points', () => {
       } as any)
 
       const service = makeJWTService(googleConfig)
-      const result = await Effect.runPromise(
-        Effect.either(service.verify('some.jwt.token'))
-      )
+      const result = await Effect.runPromise(Effect.either(service.verify('some.jwt.token')))
 
       expect(result._tag).toBe('Left')
       assert(Either.isLeft(result))
@@ -162,9 +158,7 @@ describe('JWTService email choke points', () => {
       } as any)
 
       const service = makeJWTService(googleConfig)
-      const result = await Effect.runPromise(
-        Effect.either(service.verify('google.id.token'))
-      )
+      const result = await Effect.runPromise(Effect.either(service.verify('google.id.token')))
 
       assert(Either.isLeft(result))
       expect(result.left).toBeInstanceOf(ParseError)
@@ -184,9 +178,7 @@ describe('JWTService email choke points', () => {
         } as any)
 
         const service = makeJWTService(hydraConfig)
-        const result = await Effect.runPromise(
-          Effect.either(service.verify('hydra.jwt.token'))
-        )
+        const result = await Effect.runPromise(Effect.either(service.verify('hydra.jwt.token')))
 
         assert(Either.isLeft(result))
         expect(result.left).toBeInstanceOf(ParseError)
@@ -204,9 +196,7 @@ describe('JWTService email choke points', () => {
         } as any)
 
         const service = makeJWTService(cfg)
-        const result = await Effect.runPromise(
-          Effect.either(service.verify('some.jwt.token'))
-        )
+        const result = await Effect.runPromise(Effect.either(service.verify('some.jwt.token')))
 
         assert(Either.isLeft(result))
         expect((result.left as ParseError).message).toContain('sub')
@@ -232,9 +222,7 @@ describe('JWTService email choke points', () => {
       vi.mocked(jwtVerify).mockRejectedValue(new Error('JWTExpired'))
 
       const service = makeJWTService(googleConfig)
-      const result = await Effect.runPromise(
-        Effect.either(service.verify('expired.jwt.token'))
-      )
+      const result = await Effect.runPromise(Effect.either(service.verify('expired.jwt.token')))
 
       expect(result._tag).toBe('Left')
       assert(Either.isLeft(result))

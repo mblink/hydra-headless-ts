@@ -43,9 +43,10 @@ try {
 }
 
 // Fetch JWKS based on configured provider
-const jwksUrl = appConfig.jwtProvider === 'google'
-  ? 'https://www.googleapis.com/oauth2/v3/certs'
-  : `${appConfig.hydraPublicUrl}/.well-known/jwks.json`
+const jwksUrl =
+  appConfig.jwtProvider === 'google'
+    ? 'https://www.googleapis.com/oauth2/v3/certs'
+    : `${appConfig.hydraPublicUrl}/.well-known/jwks.json`
 
 console.log(`\n📥 Fetching JWKS from ${appConfig.jwtProvider.toUpperCase()}...`)
 console.log(`   URL: ${jwksUrl}`)

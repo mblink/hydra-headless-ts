@@ -30,9 +30,8 @@ export type PKCEState = typeof PKCEStateSchema.Type
  * Hydra Client
  */
 
-export const AllowedFlowScopes = Schema.Literal("email", "offline_access", "profile", "openid")
-export const AllowedResponseTypes = Schema.Literal("code")
-
+export const AllowedFlowScopes = Schema.Literal('email', 'offline_access', 'profile', 'openid')
+export const AllowedResponseTypes = Schema.Literal('code')
 
 /**
  * OAuth2 Grant Types
@@ -66,13 +65,10 @@ export type RefreshTokenGrant = typeof RefreshTokenGrantSchema.Type
 /**
  * Token Request (discriminated union)
  */
-export const TokenRequestSchema = Schema.Union(
-  AuthCodeGrantSchema,
-  RefreshTokenGrantSchema
-)
+export const TokenRequestSchema = Schema.Union(AuthCodeGrantSchema, RefreshTokenGrantSchema)
 export type TokenRequest = typeof TokenRequestSchema.Type
 
-export const AuthFlowResponseTypes = Schema.Literal("code")
+export const AuthFlowResponseTypes = Schema.Literal('code')
 
 export const AuthFlowCreateClientSchema = Schema.Struct({
   client_name: Schema.String,
@@ -80,7 +76,7 @@ export const AuthFlowCreateClientSchema = Schema.Struct({
   grant_types: Schema.Array(Schema.String),
   response_types: Schema.Array(AuthFlowResponseTypes),
   redirect_urls: Schema.Array(Schema.String),
-  token_endpoint_auth_method: Schema.Literal("none")
+  token_endpoint_auth_method: Schema.Literal('none'),
 })
 export type AuthFlowCreateClientRequest = typeof AuthFlowCreateClientSchema.Type
 
@@ -144,7 +140,7 @@ export const GoogleUserInfoSchema = Schema.Struct({
   given_name: Schema.optional(Schema.String),
   family_name: Schema.optional(Schema.String),
   picture: Schema.optional(Schema.String),
-  locale: Schema.optional(Schema.String)
+  locale: Schema.optional(Schema.String),
 })
 
 export type GoogleUserInfoResponse = typeof GoogleUserInfoSchema.Type

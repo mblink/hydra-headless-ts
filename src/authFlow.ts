@@ -1,30 +1,26 @@
-
 import { Effect, pipe } from 'effect'
 import { OAuth2ApiService } from './api/oauth2.js'
-import { appConfig, DCR_MASTER_CLIENT_ID } from './config.js';
-import { HttpStatusError, type HttpError } from './fp/errors.js';
-import { validateCreateClient } from "./fp/validation.js";
-import type { CimdMetadata } from "./fp/domain.js";
-import type { OAuth2Client as OryOAuth2Client } from "@ory/client-fetch";
+import { appConfig, DCR_MASTER_CLIENT_ID } from './config.js'
+import { HttpStatusError, type HttpError } from './fp/errors.js'
+import { validateCreateClient } from './fp/validation.js'
+import type { CimdMetadata } from './fp/domain.js'
+import type { OAuth2Client as OryOAuth2Client } from '@ory/client-fetch'
 
-
-export const newClient = (
-  clientName: string
-) => {
+export const newClient = (clientName: string) => {
   const newClientIn = {
     client_name: clientName,
-    grant_types: ["authorization_code", "refresh_token"],
-    scope: "openid email profile offline_access",
-    response_types: ["code"],
-    redirect_uris: [`${appConfig.baseUrl}/callback`, "https://claude.ai/api/mcp/auth_callback"],
-    token_endpoint_auth_method: "none"
+    grant_types: ['authorization_code', 'refresh_token'],
+    scope: 'openid email profile offline_access',
+    response_types: ['code'],
+    redirect_uris: [`${appConfig.baseUrl}/callback`, 'https://claude.ai/api/mcp/auth_callback'],
+    token_endpoint_auth_method: 'none',
   }
   return pipe(
     OAuth2ApiService,
     Effect.flatMap((api: OAuth2ApiService) => api.createClient(newClientIn))
   )
 }
-export const getClient = (clientId:string) =>
+export const getClient = (clientId: string) =>
   pipe(
     OAuth2ApiService,
     Effect.flatMap((api) => api.getClient(clientId))
@@ -78,9 +74,9 @@ export const ensureClient = (): Effect.Effect<
           Effect.flatMap((created) =>
             Effect.fail(
               `CLIENT NOT FOUND IN HYDRA — database was likely reset.\n` +
-              `New client created. Update hydra.env:\n` +
-              `  AUTH_FLOW_CLIENT_ID=${created.client_id ?? '(see output)'}\n` +
-              `Then restart the service.`
+                `New client created. Update hydra.env:\n` +
+                `  AUTH_FLOW_CLIENT_ID=${created.client_id ?? '(see output)'}\n` +
+                `Then restart the service.`
             )
           )
         )
@@ -105,7 +101,9 @@ const toHydraCimdClient = (
   client_id: clientIdUrl,
   client_name: metadata.client_name ?? clientIdUrl,
   redirect_uris: [...metadata.redirect_uris],
-  grant_types: metadata.grant_types ? [...metadata.grant_types] : ['authorization_code', 'refresh_token'],
+  grant_types: metadata.grant_types
+    ? [...metadata.grant_types]
+    : ['authorization_code', 'refresh_token'],
   response_types: metadata.response_types ? [...metadata.response_types] : ['code'],
   scope: metadata.scope ?? 'openid email profile offline_access',
   token_endpoint_auth_method: 'none',
@@ -146,15 +144,11 @@ export const upsertCimdClient = (
 
 //Don't need to create clients at the moment
 // Creating clients needs thought into how they interact with the system
-export const createClient = (clientId:string) =>
+export const createClient = (clientId: string) =>
   pipe(
     listClients(),
     Effect.map((clients: OryOAuth2Client[]) =>
-      clients
-        .map(client => client.client_id)
-        .filter((id): id is string => id !== undefined)
+      clients.map((client) => client.client_id).filter((id): id is string => id !== undefined)
     ),
-    Effect.flatMap((clientIds: string[]) =>
-      validateCreateClient(clientId, clientIds)
-    )
+    Effect.flatMap((clientIds: string[]) => validateCreateClient(clientId, clientIds))
   )

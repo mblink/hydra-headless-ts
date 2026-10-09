@@ -18,9 +18,7 @@ export const getLoginExample = (loginChallenge: string) =>
   pipe(
     OAuth2ApiService,
     Effect.flatMap((api) => api.getLoginRequest(loginChallenge)),
-    Effect.tap((loginRequest) =>
-      Effect.sync(() => console.log('Login request:', loginRequest))
-    ),
+    Effect.tap((loginRequest) => Effect.sync(() => console.log('Login request:', loginRequest))),
     Effect.catchAll((error: HttpError) =>
       Effect.sync(() => console.error('Failed to get login request:', error))
     )

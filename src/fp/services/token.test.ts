@@ -46,9 +46,10 @@ const makeTestRedis = (
   jwtRefreshData = validJWTRefreshData,
   googleTokenData: GoogleTokenData = validGoogleTokenData
 ): RedisService => {
-  const getJSON = vi.fn()
-    .mockReturnValueOnce(Effect.succeed(jwtRefreshData))   // Step 2: getJWTRefresh
-    .mockReturnValueOnce(Effect.succeed(googleTokenData))  // Step 3: getGoogleToken
+  const getJSON = vi
+    .fn()
+    .mockReturnValueOnce(Effect.succeed(jwtRefreshData)) // Step 2: getJWTRefresh
+    .mockReturnValueOnce(Effect.succeed(googleTokenData)) // Step 3: getGoogleToken
   return {
     get: () => Effect.succeed(null),
     getJSON,
@@ -136,8 +137,9 @@ const validAuthCodeData: AuthCodeData = {
 }
 
 const makeAuthCodeRedis = (authCodeData: AuthCodeData = validAuthCodeData): RedisService => {
-  const getJSON = vi.fn()
-    .mockReturnValueOnce(Effect.succeed(authCodeData))  // getAuthCode
+  const getJSON = vi
+    .fn()
+    .mockReturnValueOnce(Effect.succeed(authCodeData)) // getAuthCode
     .mockReturnValueOnce(Effect.succeed(validPKCEState)) // getAuthCodeState
   return {
     get: () => Effect.succeed(null),
@@ -150,10 +152,7 @@ const makeAuthCodeRedis = (authCodeData: AuthCodeData = validAuthCodeData): Redi
 }
 
 const runAuthCodeGrant = (redis: RedisService) => {
-  const layer = Layer.merge(
-    Layer.succeed(RedisService, redis),
-    Layer.succeed(JWTService, stubJWT)
-  )
+  const layer = Layer.merge(Layer.succeed(RedisService, redis), Layer.succeed(JWTService, stubJWT))
   return Effect.runPromise(
     Effect.either(
       Effect.provide(

@@ -54,9 +54,10 @@ export const createValidateTokenRouter = (serviceLayer: Layer.Layer<JWTService>)
       }
 
       // Fetch JWKS based on configured provider
-      const jwksUrl = appConfig.jwtProvider === 'google'
-        ? 'https://www.googleapis.com/oauth2/v3/certs'
-        : `${appConfig.hydraPublicUrl}/.well-known/jwks.json`
+      const jwksUrl =
+        appConfig.jwtProvider === 'google'
+          ? 'https://www.googleapis.com/oauth2/v3/certs'
+          : `${appConfig.hydraPublicUrl}/.well-known/jwks.json`
 
       let jwks: JWKS
       try {
@@ -78,9 +79,7 @@ export const createValidateTokenRouter = (serviceLayer: Layer.Layer<JWTService>)
       })
 
       try {
-        const verifiedClaims = await Effect.runPromise(
-          Effect.provide(program, serviceLayer)
-        )
+        const verifiedClaims = await Effect.runPromise(Effect.provide(program, serviceLayer))
 
         const now = Math.floor(Date.now() / 1000)
         const timeUntilExpiry = verifiedClaims.exp - now

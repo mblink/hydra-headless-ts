@@ -98,17 +98,13 @@ jeff@example.com
     })
 
     it('returns an empty allowlist when the file is missing', async () => {
-      const { isEmailAllowed } = await loadModule(
-        new Error('ENOENT: no such file or directory')
-      )
+      const { isEmailAllowed } = await loadModule(new Error('ENOENT: no such file or directory'))
       expect(isEmailAllowed('admin@bondlink.com')).toBe(false)
       expect(isEmailAllowed('user@gmail.com')).toBe(false)
     })
 
     it('logs an error when the file fails to load', async () => {
-      const { mockError } = await loadModule(
-        new Error('ENOENT: no such file or directory')
-      )
+      const { mockError } = await loadModule(new Error('ENOENT: no such file or directory'))
       expect(mockError).toHaveBeenCalledWith(
         expect.stringContaining('Failed to load email allowlist'),
         expect.objectContaining({
@@ -192,10 +188,7 @@ jeff@example.com
      * global list, so the fs mock is keyed by path. `resources` maps a resource
      * name to its file content; anything absent is treated as a missing file.
      */
-    const loadWithResources = async (
-      globalContent: string,
-      resources: Record<string, string>
-    ) => {
+    const loadWithResources = async (globalContent: string, resources: Record<string, string>) => {
       const mockError = vi.fn()
 
       vi.doMock('../../logging-effect.js', () => ({
@@ -253,10 +246,7 @@ jeff@example.com
       // Must not fall back to the global list — that would silently widen a
       // restricted endpoint to the whole domain the first time Salt failed to
       // write the file.
-      const { isEmailAllowedForResource, mockError } = await loadWithResources(
-        'bondlink.com\n',
-        {}
-      )
+      const { isEmailAllowedForResource, mockError } = await loadWithResources('bondlink.com\n', {})
       expect(isEmailAllowedForResource('justin@bondlink.com', 'db-compare')).toBe(false)
       expect(mockError).toHaveBeenCalledWith(
         expect.stringContaining('No allowlist for protected resource'),

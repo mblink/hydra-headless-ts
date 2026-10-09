@@ -26,10 +26,12 @@ function constructorReturning<T>(instance: T) {
 
 // Mock google-auth-library
 vi.mock('google-auth-library', () => ({
-  OAuth2Client: vi.fn().mockImplementation(constructorReturning({
-    generateAuthUrl: vi.fn(),
-    getToken: vi.fn(),
-  })),
+  OAuth2Client: vi.fn().mockImplementation(
+    constructorReturning({
+      generateAuthUrl: vi.fn(),
+      getToken: vi.fn(),
+    })
+  ),
 }))
 
 describe('GoogleOAuthService', () => {
@@ -56,8 +58,8 @@ describe('GoogleOAuthService', () => {
         refresh_token: 'refresh-token-123',
         client_id: 'test-client',
         access_token: 'test-access-token',
-        scope: "scopeOne scopeTwo",
-        subject: "test@test.tld",
+        scope: 'scopeOne scopeTwo',
+        subject: 'test@test.tld',
         created_at: Date.now(),
         expires_in: 300,
         updated_at: Date.now(),
@@ -92,8 +94,8 @@ describe('GoogleOAuthService', () => {
         refresh_token: 'refresh-token-123',
         client_id: 'test-client',
         access_token: 'test-access-token',
-        scope: "scopeOne scopeTwo",
-        subject: "test@test.tld",
+        scope: 'scopeOne scopeTwo',
+        subject: 'test@test.tld',
         created_at: Date.now(),
         expires_in: 300,
         updated_at: Date.now(),
@@ -130,8 +132,8 @@ describe('GoogleOAuthService', () => {
         refresh_token: 'refresh-token-123',
         client_id: 'test-client',
         access_token: 'test-access-token',
-        scope: "scopeOne scopeTwo",
-        subject: "test@test.tld",
+        scope: 'scopeOne scopeTwo',
+        subject: 'test@test.tld',
         created_at: Date.now(),
         expires_in: 300,
         updated_at: Date.now(),
@@ -154,8 +156,8 @@ describe('GoogleOAuthService', () => {
         refresh_token: 'refresh-token-123',
         client_id: 'test-client',
         access_token: 'test-access-token',
-        scope: "scopeOne scopeTwo",
-        subject: "test@test.tld",
+        scope: 'scopeOne scopeTwo',
+        subject: 'test@test.tld',
         created_at: Date.now(),
         expires_in: 300,
         updated_at: Date.now(),
@@ -177,7 +179,9 @@ describe('GoogleOAuthService', () => {
   describe('generateAuthUrl', () => {
     it('should generate auth URL successfully', async () => {
       const mockOAuth2Client = {
-        generateAuthUrl: vi.fn().mockReturnValue('https://accounts.google.com/o/oauth2/v2/auth?...'),
+        generateAuthUrl: vi
+          .fn()
+          .mockReturnValue('https://accounts.google.com/o/oauth2/v2/auth?...'),
       }
 
       // Mock the OAuth2Client constructor to return our mock

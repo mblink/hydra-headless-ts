@@ -52,23 +52,25 @@ const proxyOptions = {
         target: appConfig.hydraInternalUrl,
       })
       if (!('status' in res) || (res as Response).headersSent) return
-      ;(res as Response).status(502).json({ error: 'proxy_error', message: 'Upstream service unavailable' })
+      ;(res as Response)
+        .status(502)
+        .json({ error: 'proxy_error', message: 'Upstream service unavailable' })
     },
     proxyReq: (proxyReq: ClientRequest, req: Request, _res: Response) => {
-      const parsed = new URL(`${req.protocol  }://${  req.get('host')  }${req.originalUrl}`)
+      const parsed = new URL(`${req.protocol}://${req.get('host')}${req.originalUrl}`)
       syncLogger.info('Checking for Proxy request to Hydra', {
         method: req.method,
         originalUrl: req.originalUrl,
         proxiedUrl: `${appConfig.hydraInternalUrl}${parsed.pathname}`,
         body: req.body,
       })
-      if (req.method !== "GET" && Object.keys(req.body).length > 0) {
+      if (req.method !== 'GET' && Object.keys(req.body).length > 0) {
         syncLogger.info('Populating proxy request body for non-GET request', {
           body: req.body,
           length: JSON.stringify(req.body).length,
         })
-        proxyReq.path = req.originalUrl;
-        proxyReq.write(JSON.stringify(req.body));
+        proxyReq.path = req.originalUrl
+        proxyReq.write(JSON.stringify(req.body))
       }
       syncLogger.info('Proxy onProxyReq processing', {
         method: req.method,
@@ -77,7 +79,9 @@ const proxyOptions = {
       })
       // Special handling for /oauth2/register to fix contacts being null
       if (req.body && typeof req.body === 'object' && req.body?.contacts === null) {
-        syncLogger.info('Modifying /oauth2/register request body to set contacts to empty array instead of null')
+        syncLogger.info(
+          'Modifying /oauth2/register request body to set contacts to empty array instead of null'
+        )
         // Hydra expects contacts to be an array, not null
         req.body.contacts = []
         const bodyData = JSON.stringify(req.body)
@@ -90,7 +94,7 @@ const proxyOptions = {
     },
   },
   pathRewrite: async (path: string, req: Request) => {
-    const parsed = new URL(`${req.protocol  }://${  req.get('host')  }${req.originalUrl}`)
+    const parsed = new URL(`${req.protocol}://${req.get('host')}${req.originalUrl}`)
     if (parsed.pathname === '/oauth2/auth') {
       // One id per authorization request, so overlapping flows in the same browser don't share
       // state. It keys the PKCE state in Redis and replaces the client's `state` on the way to
@@ -101,14 +105,8 @@ const proxyOptions = {
       // callback can check it comes from the browser that started the flow
       req.session.oauthFlowStartedAt = Date.now()
 
-      const {
-        client_id,
-        redirect_uri,
-        state,
-        code_challenge,
-        code_challenge_method,
-        scope,
-      } = req.query
+      const { client_id, redirect_uri, state, code_challenge, code_challenge_method, scope } =
+        req.query
 
       // Only store PKCE state if we have the required parameters
       if (code_challenge !== undefined && state !== undefined) {
@@ -225,7 +223,11 @@ const runCimdPipeline = (
       const { metadata } = cached.right
       if (!metadata.redirect_uris.includes(redirectUri)) {
         return yield* Effect.fail(
-          new CimdRedirectUriMismatch({ clientId: clientIdUrl, redirectUri, allowed: metadata.redirect_uris })
+          new CimdRedirectUriMismatch({
+            clientId: clientIdUrl,
+            redirectUri,
+            allowed: metadata.redirect_uris,
+          })
         )
       }
       return metadata
@@ -234,7 +236,11 @@ const runCimdPipeline = (
     const metadata = yield* fetchCimdMetadata(clientIdUrl, appConfig.cimd)
     if (!metadata.redirect_uris.includes(redirectUri)) {
       return yield* Effect.fail(
-        new CimdRedirectUriMismatch({ clientId: clientIdUrl, redirectUri, allowed: metadata.redirect_uris })
+        new CimdRedirectUriMismatch({
+          clientId: clientIdUrl,
+          redirectUri,
+          allowed: metadata.redirect_uris,
+        })
       )
     }
 
@@ -282,7 +288,15 @@ const enhancedProxyMiddleware = async (req: Request, res: Response, next: NextFu
       timestamp: new Date().toISOString(),
     })
 
-    const { client_id, redirect_uri, response_type, code_challenge, code_challenge_method, scope, state } = req.query
+    const {
+      client_id,
+      redirect_uri,
+      response_type,
+      code_challenge,
+      code_challenge_method,
+      scope,
+      state,
+    } = req.query
 
     // Fatal validation errors that should return 400
     const missingParams: string[] = []

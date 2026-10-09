@@ -1,9 +1,6 @@
 import { Effect } from 'effect'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import {
-  appConfigEffect,
-  loadAppConfigSync,
-} from './config.js'
+import { appConfigEffect, loadAppConfigSync } from './config.js'
 
 describe('fp/config', () => {
   const originalEnv = { ...process.env }
@@ -243,7 +240,9 @@ describe('fp/config', () => {
 
       const result = await Effect.runPromise(program)
 
-      expect(result.database.dsn).toBe('postgres://testuser:testpass@dbhost:5555/testdb?sslmode=disable')
+      expect(result.database.dsn).toBe(
+        'postgres://testuser:testpass@dbhost:5555/testdb?sslmode=disable'
+      )
       expect(result.database.user).toBe('testuser')
       expect(result.database.password).toBe('testpass')
       expect(result.database.host).toBe('dbhost')

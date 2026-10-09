@@ -16,7 +16,9 @@ const contentHash = 'hash-1'
 
 describe('upsertCimdClient', () => {
   it('creates a new Hydra client when none exists (404 from getClient)', async () => {
-    const getClient = vi.fn(() => Effect.fail(new HttpStatusError({ status: 404, statusText: 'Not Found' })))
+    const getClient = vi.fn(() =>
+      Effect.fail(new HttpStatusError({ status: 404, statusText: 'Not Found' }))
+    )
     const createClient = vi.fn((client: OAuth2Client) => Effect.succeed(client))
     const updateClient = vi.fn()
 

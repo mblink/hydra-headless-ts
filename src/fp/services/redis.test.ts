@@ -176,10 +176,7 @@ describe('RedisService', () => {
       const result = await Effect.runPromise(program)
 
       expect(result).toBe('OK')
-      expect(mockRedis.set).toHaveBeenCalledWith(
-        'test-key',
-        JSON.stringify(testData)
-      )
+      expect(mockRedis.set).toHaveBeenCalledWith('test-key', JSON.stringify(testData))
     })
 
     it('should set JSON with expiration', async () => {
@@ -189,12 +186,7 @@ describe('RedisService', () => {
       const result = await Effect.runPromise(program)
 
       expect(result).toBe('OK')
-      expect(mockRedis.set).toHaveBeenCalledWith(
-        'test-key',
-        JSON.stringify(testData),
-        'EX',
-        300
-      )
+      expect(mockRedis.set).toHaveBeenCalledWith('test-key', JSON.stringify(testData), 'EX', 300)
     })
 
     it('should handle circular references', async () => {
@@ -265,20 +257,20 @@ describe('RedisService', () => {
       expect(result).toBe(0)
     })
   })
-// TODO: Type 'RedisService' must have a 'Symbol.iterator' method that returns an iterator.
-//   describe('RedisServiceLive Layer', () => {
-//     it('should create a valid Layer', async () => {
-//       const layer = RedisServiceLive(mockRedis)
+  // TODO: Type 'RedisService' must have a 'Symbol.iterator' method that returns an iterator.
+  //   describe('RedisServiceLive Layer', () => {
+  //     it('should create a valid Layer', async () => {
+  //       const layer = RedisServiceLive(mockRedis)
 
-//       const program = Effect.gen(function* () {
-//         const service = yield* redisService
-//         return service
-//       })
+  //       const program = Effect.gen(function* () {
+  //         const service = yield* redisService
+  //         return service
+  //       })
 
-//       // Layer should be composable
-//       expect(layer).toBeDefined()
-//     })
-//   })
+  //       // Layer should be composable
+  //       expect(layer).toBeDefined()
+  //     })
+  //   })
 })
 
 describe('createOAuthRedisOps', () => {
@@ -290,7 +282,6 @@ describe('createOAuthRedisOps', () => {
     mockRedis = createMockRedis()
     redisService = makeRedisService(mockRedis)
     oauthOps = createOAuthRedisOps(redisService)
-
   })
 
   describe('PKCE operations', () => {
@@ -306,9 +297,7 @@ describe('createOAuthRedisOps', () => {
 
       vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(testData))
 
-      const result = await Effect.runPromise(
-        oauthOps.getPKCEState('session-123', TestSchema)
-      )
+      const result = await Effect.runPromise(oauthOps.getPKCEState('session-123', TestSchema))
 
       expect(result).toEqual(testData)
       expect(mockRedis.set).toHaveBeenCalledWith(
@@ -342,9 +331,7 @@ describe('createOAuthRedisOps', () => {
 
       vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(testData))
 
-      const result = await Effect.runPromise(
-        oauthOps.getAuthCode('code-abc', TestSchema)
-      )
+      const result = await Effect.runPromise(oauthOps.getAuthCode('code-abc', TestSchema))
 
       expect(result).toEqual(testData)
     })
@@ -384,9 +371,7 @@ describe('createOAuthRedisOps', () => {
 
       vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(testData))
 
-      const result = await Effect.runPromise(
-        oauthOps.getAuthCodeState('code-abc', TestSchema)
-      )
+      const result = await Effect.runPromise(oauthOps.getAuthCodeState('code-abc', TestSchema))
 
       expect(result).toEqual(testData)
     })
@@ -401,15 +386,11 @@ describe('createOAuthRedisOps', () => {
     it('should set and get refresh token', async () => {
       const testData = { userId: 'user-123', tokenData: { access: 'token' } }
 
-      await Effect.runPromise(
-        oauthOps.setRefreshToken('refresh-xyz', testData, 86400)
-      )
+      await Effect.runPromise(oauthOps.setRefreshToken('refresh-xyz', testData, 86400))
 
       vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(testData))
 
-      const result = await Effect.runPromise(
-        oauthOps.getRefreshToken('refresh-xyz', TestSchema)
-      )
+      const result = await Effect.runPromise(oauthOps.getRefreshToken('refresh-xyz', TestSchema))
 
       expect(result).toEqual(testData)
     })
@@ -430,9 +411,7 @@ describe('createOAuthRedisOps', () => {
     it('should delete refresh token', async () => {
       vi.mocked(mockRedis.del).mockResolvedValue(1)
 
-      const result = await Effect.runPromise(
-        oauthOps.deleteRefreshToken('refresh-xyz')
-      )
+      const result = await Effect.runPromise(oauthOps.deleteRefreshToken('refresh-xyz'))
 
       expect(result).toBe(1)
       expect(mockRedis.del).toHaveBeenCalledWith('refresh_token:refresh-xyz')

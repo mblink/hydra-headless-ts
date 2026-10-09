@@ -260,7 +260,10 @@ describe('cimdContentHash', () => {
   })
 
   it('changes when metadata changes', () => {
-    const changed: CimdMetadata = { ...validMetadata, redirect_uris: ['https://client.example/other'] }
+    const changed: CimdMetadata = {
+      ...validMetadata,
+      redirect_uris: ['https://client.example/other'],
+    }
     expect(cimdContentHash(validMetadata)).not.toBe(cimdContentHash(changed))
   })
 })

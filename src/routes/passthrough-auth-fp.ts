@@ -12,15 +12,12 @@ import {
   createOAuth2Error,
 } from '../fp/domain.js'
 import { type AppError, InvalidGrant } from '../fp/errors.js'
-import {
-  processAuthCodeGrant,
-  processRefreshTokenGrant,
-} from '../fp/services/token.js'
+import { processAuthCodeGrant, processRefreshTokenGrant } from '../fp/services/token.js'
 import { validateSchema } from '../fp/validation.js'
 import type { GoogleOAuthService } from '../fp/services/google.js'
 import type { JWTService } from '../fp/services/jwt.js'
 import type { RedisService } from '../fp/services/redis.js'
-import type { Layer } from 'effect';
+import type { Layer } from 'effect'
 
 const router = express.Router()
 
@@ -112,10 +109,10 @@ const mapErrorToOAuth2 = (error: AppError): { status: number; body: object } => 
  * 4. Context-based dependency injection via Layers
  * 5. No side effects in the handler - all IO wrapped in Effect
  */
-export const createTokenHandler = (serviceLayer: Layer.Layer<RedisService | GoogleOAuthService | JWTService>) => {
-
+export const createTokenHandler = (
+  serviceLayer: Layer.Layer<RedisService | GoogleOAuthService | JWTService>
+) => {
   return async (req: express.Request, res: express.Response) => {
-
     const program = Effect.gen(function* () {
       // Log incoming request with comprehensive details
       yield* Effect.logInfo('=== TOKEN ENDPOINT CALLED ===').pipe(
@@ -171,14 +168,13 @@ export const createTokenHandler = (serviceLayer: Layer.Layer<RedisService | Goog
         yield* Effect.logDebug('Processing refresh_token grant').pipe(
           Effect.annotateLogs({
             refresh_token: `${tokenRequest.refresh_token?.substring(0, 50)}...`,
-            client_id: tokenRequest.client_id
+            client_id: tokenRequest.client_id,
           })
         )
         // Validate as refresh token grant and process
         const grant = yield* validateSchema(RefreshTokenGrantSchema, tokenRequest)
         const result = yield* processRefreshTokenGrant(grant)
         return result
-
       } else {
         yield* Effect.logDebug('Unsupported grant type received').pipe(
           Effect.annotateLogs({ grant_type: (tokenRequest as { grant_type: unknown }).grant_type })
@@ -195,9 +191,7 @@ export const createTokenHandler = (serviceLayer: Layer.Layer<RedisService | Goog
     )
 
     // Step 3: Run the effect and handle result
-    const result = await Effect.runPromise(
-      Effect.either(program)
-    )
+    const result = await Effect.runPromise(Effect.either(program))
 
     // Step 4: Send response based on result
     if (result._tag === 'Left') {
@@ -264,7 +258,9 @@ export const createTokenHandler = (serviceLayer: Layer.Layer<RedisService | Goog
 /**
  * Router factory (will be used when we have service layer available)
  */
-export const createTokenRouter = (serviceLayer: Layer.Layer<RedisService | GoogleOAuthService | JWTService>) => {
+export const createTokenRouter = (
+  serviceLayer: Layer.Layer<RedisService | GoogleOAuthService | JWTService>
+) => {
   router.post('/token', createTokenHandler(serviceLayer))
   return router
 }

@@ -7,7 +7,7 @@ import { PKCEStateSchema } from '../domain.js'
 import { type AppError, GoogleAuthError, InvalidState, UnauthorizedEmail } from '../errors.js'
 import { isEmailAllowed } from './emailAllowlist.js'
 import { RedisService, createOAuthRedisOps } from './redis.js'
-import type { AuthCodeData } from '../domain.js';
+import type { AuthCodeData } from '../domain.js'
 
 /**
  * Configuration for callback
@@ -63,11 +63,7 @@ const exchangeGoogleCode = (
 /**
  * Verify Google's ID token (signature, issuer, audience, expiry) and return its claims
  */
-const verifyGoogleIdToken = (
-  idToken: string,
-  googleClient: GoogleOAuthClient,
-  audience: string
-) =>
+const verifyGoogleIdToken = (idToken: string, googleClient: GoogleOAuthClient, audience: string) =>
   Effect.tryPromise({
     try: () => googleClient.verifyIdToken({ idToken, audience }),
     catch: (error) =>
@@ -196,12 +192,8 @@ export const processCallback = (
     yield* redisOps.setAuthCode(authCode, authData, 300)
 
     // Step 6: Delete PKCE session (cleanup) - catch errors to not fail the flow
-    yield* Effect.catchAll(
-      redisOps.deletePKCEState(flowId),
-      (err) =>
-        Effect.logError('Failed to delete PKCE session').pipe(
-          Effect.annotateLogs({ err, flowId })
-        )
+    yield* Effect.catchAll(redisOps.deletePKCEState(flowId), (err) =>
+      Effect.logError('Failed to delete PKCE session').pipe(Effect.annotateLogs({ err, flowId }))
     )
 
     // Step 7: Build redirect URL

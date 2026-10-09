@@ -42,9 +42,7 @@ const loadAllowlist = (filePath: string): EmailAllowlist => {
   }
 }
 
-const ALLOWLIST_PATH = path.resolve(
-  process.env['EMAIL_ALLOWLIST_PATH'] ?? 'allowed_emails.txt'
-)
+const ALLOWLIST_PATH = path.resolve(process.env['EMAIL_ALLOWLIST_PATH'] ?? 'allowed_emails.txt')
 
 // Load once at module initialization (startup)
 const allowlist: EmailAllowlist = loadAllowlist(ALLOWLIST_PATH)

@@ -1,10 +1,7 @@
 import { Effect, Layer, Context } from 'effect'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { OAuth2ApiService } from '../api/oauth2.js'
-import {
-  createAppLayer,
-  createLoggerLayer,
-} from './bootstrap.js'
+import { createAppLayer, createLoggerLayer } from './bootstrap.js'
 import { GoogleOAuthService } from './services/google.js'
 import { HydraService } from './services/hydra.js'
 import { RedisService } from './services/redis.js'
@@ -54,22 +51,14 @@ describe('bootstrap', () => {
     }
 
     it('should create complete app layer with all services', async () => {
-      const appLayer = createAppLayer(
-        mockRedis,
-        mockOAuth2Config,
-        mockGoogleConfig
-      )
+      const appLayer = createAppLayer(mockRedis, mockOAuth2Config, mockGoogleConfig)
 
       expect(appLayer).toBeDefined()
       expect(Layer.isLayer(appLayer)).toBe(true)
     })
 
     it('should provide RedisService in the layer', async () => {
-      const appLayer = createAppLayer(
-        mockRedis,
-        mockOAuth2Config,
-        mockGoogleConfig
-      )
+      const appLayer = createAppLayer(mockRedis, mockOAuth2Config, mockGoogleConfig)
 
       vi.mocked(mockRedis.get).mockResolvedValue('test-value')
 
@@ -85,11 +74,7 @@ describe('bootstrap', () => {
     })
 
     it('should provide GoogleOAuthService in the layer', async () => {
-      const appLayer = createAppLayer(
-        mockRedis,
-        mockOAuth2Config,
-        mockGoogleConfig
-      )
+      const appLayer = createAppLayer(mockRedis, mockOAuth2Config, mockGoogleConfig)
 
       const program = Effect.gen(function* () {
         const google = yield* GoogleOAuthService
@@ -104,11 +89,7 @@ describe('bootstrap', () => {
     })
 
     it('should provide HydraService in the layer', async () => {
-      const appLayer = createAppLayer(
-        mockRedis,
-        mockOAuth2Config,
-        mockGoogleConfig
-      )
+      const appLayer = createAppLayer(mockRedis, mockOAuth2Config, mockGoogleConfig)
 
       const program = Effect.gen(function* () {
         const hydra = yield* HydraService
@@ -124,11 +105,7 @@ describe('bootstrap', () => {
     })
 
     it('should provide OAuth2ApiService in the layer', async () => {
-      const appLayer = createAppLayer(
-        mockRedis,
-        mockOAuth2Config,
-        mockGoogleConfig
-      )
+      const appLayer = createAppLayer(mockRedis, mockOAuth2Config, mockGoogleConfig)
 
       const program = Effect.gen(function* () {
         const oauth2 = yield* OAuth2ApiService
@@ -143,11 +120,7 @@ describe('bootstrap', () => {
     })
 
     it('should provide Logger layer that supports Effect logging', async () => {
-      const appLayer = createAppLayer(
-        mockRedis,
-        mockOAuth2Config,
-        mockGoogleConfig
-      )
+      const appLayer = createAppLayer(mockRedis, mockOAuth2Config, mockGoogleConfig)
 
       const program = Effect.gen(function* () {
         yield* Effect.logInfo('Integration test')
@@ -160,11 +133,7 @@ describe('bootstrap', () => {
     })
 
     it('should allow services to work together', async () => {
-      const appLayer = createAppLayer(
-        mockRedis,
-        mockOAuth2Config,
-        mockGoogleConfig
-      )
+      const appLayer = createAppLayer(mockRedis, mockOAuth2Config, mockGoogleConfig)
 
       vi.mocked(mockRedis.set).mockResolvedValue('OK' as any)
       vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify({ test: 'data' }))
@@ -193,11 +162,7 @@ describe('bootstrap', () => {
         headers: { 'X-Custom-Header': 'custom-value' },
       }
 
-      const appLayer = createAppLayer(
-        mockRedis,
-        customConfig,
-        mockGoogleConfig
-      )
+      const appLayer = createAppLayer(mockRedis, customConfig, mockGoogleConfig)
 
       const program = Effect.gen(function* () {
         const oauth2 = yield* OAuth2ApiService
@@ -209,11 +174,7 @@ describe('bootstrap', () => {
     })
 
     it('should handle multiple concurrent service operations', async () => {
-      const appLayer = createAppLayer(
-        mockRedis,
-        mockOAuth2Config,
-        mockGoogleConfig
-      )
+      const appLayer = createAppLayer(mockRedis, mockOAuth2Config, mockGoogleConfig)
 
       vi.mocked(mockRedis.get).mockResolvedValue('value-1')
       vi.mocked(mockRedis.set).mockResolvedValue('OK' as any)
@@ -254,15 +215,12 @@ describe('bootstrap', () => {
           hydraAdminUrl: 'https://hydra.test.example.com',
         }
       )
-      class CustomServiceTag extends Context.Tag("CustomService")<
+      class CustomServiceTag extends Context.Tag('CustomService')<
         CustomServiceTag,
         { customMethod: () => 'custom-value' }
       >() {}
       // Create a custom layer that depends on app services
-      const customLayer = Layer.succeed(
-        CustomServiceTag,
-        { customMethod: () => 'custom-value' }
-      )
+      const customLayer = Layer.succeed(CustomServiceTag, { customMethod: () => 'custom-value' })
 
       const combinedLayer = Layer.merge(appLayer, customLayer)
 
@@ -271,9 +229,7 @@ describe('bootstrap', () => {
         return { redis }
       })
 
-      const result = await Effect.runPromise(
-        Effect.provide(program, combinedLayer)
-      )
+      const result = await Effect.runPromise(Effect.provide(program, combinedLayer))
 
       expect(result.redis).toBeDefined()
     })
@@ -302,9 +258,7 @@ describe('bootstrap', () => {
         return yield* redis.get('test-key')
       })
 
-      const result = await Effect.runPromise(
-        Effect.either(Effect.provide(program, appLayer))
-      )
+      const result = await Effect.runPromise(Effect.either(Effect.provide(program, appLayer)))
 
       expect(result._tag).toBe('Left')
     })
