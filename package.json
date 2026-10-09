@@ -8,7 +8,7 @@
     "_tsc": "tsc -p .",
     "tswatch": "tsc --watch -p .",
     "_bundle": "rollup -c",
-    "build": "npm-run-all clean _tsc _bundle",
+    "build": "npm-run-all clean lint _tsc _bundle",
     "ci": "npm-run-all clean lint _tsc test",
     "clean": "rm -rf lib dist",
     "cli": "node --enable-source-maps --loader ts-node/esm --env-file=./src/env/local.env src/cli.ts",
