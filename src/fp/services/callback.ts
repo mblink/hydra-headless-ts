@@ -185,9 +185,6 @@ export const processCallback = (
       google_expires_at: googleExpiresAt,
     };
 
-    yield* Effect.logInfo('AuthData').pipe(Effect.annotateLogs({ authData }));
-    yield* Effect.logInfo('Generated auth_code').pipe(Effect.annotateLogs({ authCode }));
-
     // Step 5: Store PKCE state and auth_code in Redis (sequential)
     yield* redisOps.setAuthCodeState(authCode, pkceData);
     yield* redisOps.setAuthCode(authCode, authData, 300);

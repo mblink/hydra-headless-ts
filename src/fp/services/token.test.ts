@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Effect, Either, Layer } from 'effect';
 import { decodeJwt } from 'jose';
 import { describe, it, expect, vi, beforeEach, assert } from 'vitest';
@@ -105,12 +106,11 @@ const run = (redis: RedisService) => {
 // processAuthCodeGrant email check fixtures + helpers
 // ---------------------------------------------------------------------------
 
-// PKCE: plain method so verifier === challenge (no hashing needed in test)
-const CODE_VERIFIER = 'test-verifier-abc123';
+const CODE_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
 
 const validPKCEState: PKCEState = {
-  code_challenge: CODE_VERIFIER,
-  code_challenge_method: 'plain',
+  code_challenge: crypto.createHash('sha256').update(CODE_VERIFIER).digest('base64url'),
+  code_challenge_method: 'S256',
   scope: 'openid',
   state: 'test-state',
   redirect_uri: 'https://client.example.com/callback',

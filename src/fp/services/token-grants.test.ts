@@ -197,12 +197,41 @@ describe('token service', () => {
       expect(store.has('google_token:jti-1')).toBe(false);
     });
 
-    it('supports the plain PKCE method', async () => {
-      seedAuthCode('plain', 'plain-verifier');
+    it('rejects the plain PKCE method', async () => {
+      seedAuthCode('plain', verifier);
 
-      const result = await run(processAuthCodeGrant(grant('plain-verifier')));
+      const result = await run(processAuthCodeGrant(grant(verifier)));
 
-      expect(result._tag).toBe('Right');
+      expect(result._tag).toBe('Left');
+      if (result._tag === 'Left') {
+        expect(result.left).toBeInstanceOf(InvalidPKCE);
+      }
+    });
+
+    it('issues tokens to only one of two concurrent exchanges of the same code', async () => {
+      seedAuthCode();
+
+      const results = await Promise.all([run(processAuthCodeGrant(grant())), run(processAuthCodeGrant(grant()))]);
+
+      expect(results.filter((r) => r._tag === 'Right')).toHaveLength(1);
+      expect(jwtSign).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ['client_id', { client_id: 'client-2' }, 'Authorization code was not issued to this client'],
+      ['redirect_uri', { redirect_uri: 'https://other.example.com/cb' }, 'redirect_uri does not match'],
+    ])('rejects a code redeemed with a different %s and spends it', async (_label, override, reason) => {
+      seedAuthCode();
+
+      const result = await run(processAuthCodeGrant({ ...grant(), ...override }));
+
+      expect(result._tag).toBe('Left');
+      if (result._tag === 'Left') {
+        expect(result.left).toBeInstanceOf(InvalidGrant);
+        expect((result.left as InvalidGrant).reason).toContain(reason);
+      }
+      expect(jwtSign).not.toHaveBeenCalled();
+      expect(store.has('auth_code:code-1')).toBe(false);
     });
 
     it('measures the Google token lifetime at exchange time from google_expires_at', async () => {
@@ -276,6 +305,19 @@ describe('token service', () => {
       refresh_token: 'our-refresh',
       client_id: 'client-1',
       ...(scope ? { scope } : {}),
+    });
+
+    it('rejects a refresh token presented by a different client', async () => {
+      seedRefresh(Date.now() + 30 * 60 * 1000);
+
+      const result = await run(processRefreshTokenGrant({ ...grant(), client_id: 'client-2' }));
+
+      expect(result._tag).toBe('Left');
+      if (result._tag === 'Left') {
+        expect(result.left).toBeInstanceOf(InvalidGrant);
+      }
+      expect(googleRefresh).not.toHaveBeenCalled();
+      expect(jwtSign).not.toHaveBeenCalled();
     });
 
     it('reissues a JWT without calling Google while the Google token is fresh', async () => {

@@ -32,6 +32,7 @@ import {
 } from '../errors.js';
 import { validateSchema } from '../validation.js';
 import type { CimdConfig } from '../config.js';
+import type * as net from 'net';
 
 /**
  * Whether a client_id is CIMD-shaped (an https:// URL) rather than a
@@ -79,6 +80,26 @@ const resolveAddresses = (hostname: string): Promise<dns.LookupAddress[]> =>
       else resolve(addresses);
     });
   });
+
+/**
+ * A `lookup` for https.request that answers with already-validated addresses instead of
+ * resolving again. Node's connect (happy eyeballs, on by default since Node 20) asks for every
+ * address with `{ all: true }` and expects an array back; other callers expect one address.
+ */
+export const makePinnedLookup =
+  (addresses: readonly dns.LookupAddress[]): net.LookupFunction =>
+  (_hostname, options, callback) => {
+    if (options.all) {
+      callback(null, [...addresses]);
+      return;
+    }
+    const [first] = addresses;
+    if (!first) {
+      callback(Object.assign(new Error('no validated address to connect to'), { code: 'ENOTFOUND' }), '', 0);
+      return;
+    }
+    callback(null, first.address, first.family);
+  };
 
 interface FetchResult {
   readonly status: number;
@@ -129,19 +150,8 @@ const ssrfSafeFetch = (
 
             // Pin the connection to exactly the addresses we just validated —
             // this `lookup` is what https.request actually calls to connect,
-            // so there's no second, unvalidated resolution. Signature matches
-            // net.LookupFunction, the (narrower) type https.request actually
-            // expects for its `lookup` option — not the full overloaded
-            // dns.lookup surface.
-            const pinnedLookup = (
-              _hostname: string,
-              _options: dns.LookupOptions,
-              callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void,
-            ): void => {
-              const first = addresses[0];
-              if (!first) return;
-              callback(null, first.address, first.family);
-            };
+            // so there's no second, unvalidated resolution.
+            const pinnedLookup = makePinnedLookup(addresses);
 
             const req = https.request(
               url,

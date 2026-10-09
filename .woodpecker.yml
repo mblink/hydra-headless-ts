@@ -98,6 +98,10 @@ steps:
       # automatically once it's on the plugin path.
       - apk add docker-cli-compose docker-cli-buildx
       - bash build/rebuild.sh --ci
+    # Not on pull requests: they run unreviewed branch code, and this step has the Docker socket
+    # and the deploy PAT, and pushes :latest, which is what deployed hosts pull.
+    when:
+      - event: push
 
   # drillster/drone-email is published as a single linux/amd64 manifest -- not a
   # manifest list -- so it cannot be pulled on an arm64 agent at all. It was only

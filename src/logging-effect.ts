@@ -5,6 +5,7 @@
 import { Effect, Logger } from 'effect';
 import { createStream } from 'rotating-file-stream';
 import { logDirConfig } from './fp/config.js';
+import { redactingReplacer } from './logRedaction.js';
 
 /**
  * Rotating file stream for persistent logs
@@ -39,7 +40,7 @@ const customLogger = Logger.make<unknown, void>(({ logLevel, message, annotation
     fiberId: fiberIdStr,
   };
 
-  const json = JSON.stringify(entry);
+  const json = JSON.stringify(entry, redactingReplacer);
 
   // Write to both stdout and file
   process.stdout.write(`${json}\n`);
@@ -70,7 +71,7 @@ const logSync = (
     fiberId: '#sync',
   };
 
-  const json = JSON.stringify(entry);
+  const json = JSON.stringify(entry, redactingReplacer);
   process.stdout.write(`${json}\n`);
   accessLogStream.write(`${json}\n`);
 };

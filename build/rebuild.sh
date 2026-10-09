@@ -236,7 +236,8 @@ echo "Build and push complete: ${PUSH_IMAGE}:${BUILD_HASH}"
 # runs on arm64 agents, so there is exactly one arch to keep this tag pointed
 # at; no arch suffix needed the way oddjob's build.sh uses one (that script
 # still tags both amd64 and arm64 builds from the same pipeline).
-if [ $IS_CI -eq 1 ]; then
+# Pushes only, never a pull request's branch: deployed hosts pull :latest.
+if [ $IS_CI -eq 1 ] && [ "${CI_PIPELINE_EVENT:-}" = "push" ]; then
   docker push "${PUSH_IMAGE}":latest
   echo "Build and push complete: ${PUSH_IMAGE}:latest"
 fi

@@ -31,40 +31,26 @@ export const validateSchema = <A, I>(
     ),
   );
 
+// RFC 7636 §4.1: 43-128 characters from the unreserved set
+const CODE_VERIFIER = /^[A-Za-z0-9\-._~]{43,128}$/;
+
 /**
  * Pure PKCE validation function
- * Takes a code_verifier, challenge, and method and returns Effect
+ * Takes a code_verifier, challenge, and method and returns Effect. Only S256 is accepted: with
+ * plain the challenge is the verifier, and it travels in the front-channel authorization URL.
  */
 export const validatePKCE = (
   verifier: string,
   challenge: string,
   method: PKCEMethod,
-): Effect.Effect<true, InvalidPKCE> =>
-  Effect.try({
-    try: () => {
-      let computedChallenge: string;
-
-      if (method === 'S256') {
-        computedChallenge = crypto.createHash('sha256').update(verifier).digest('base64url');
-      } else if (method === 'plain') {
-        computedChallenge = verifier;
-      } else {
-        throw new Error(`Unknown method: ${method}`);
-      }
-
-      if (computedChallenge === challenge) {
-        return true as const;
-      } else {
-        throw new Error(`Challenge mismatch: expected ${challenge}, got ${computedChallenge}`);
-      }
-    },
-    catch: (error) =>
-      new InvalidPKCE({
-        challenge,
-        verifier,
-        method: String(error),
-      }),
-  });
+): Effect.Effect<true, InvalidPKCE> => {
+  const fail = (reason: string) =>
+    Effect.fail(new InvalidPKCE({ challenge, verifier, method: `${method}: ${reason}` }));
+  if (method !== 'S256') return fail('only S256 is supported');
+  if (!CODE_VERIFIER.test(verifier)) return fail('code_verifier must be 43-128 unreserved characters');
+  const computed = crypto.createHash('sha256').update(verifier).digest('base64url');
+  return computed === challenge ? Effect.succeed(true as const) : fail('challenge mismatch');
+};
 /**
  * Ensure the client doesn't exists in the clients table
  */

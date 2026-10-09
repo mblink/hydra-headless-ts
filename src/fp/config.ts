@@ -102,6 +102,16 @@ export interface CimdConfig {
 }
 
 /**
+ * Which redirect URIs a client may use, enforced at /oauth2/register and /oauth2/auth. Login and
+ * consent are accepted without a prompt, so this is what stops a self-registered client from
+ * receiving an allowlisted user's authorization code. See fp/services/redirectUri.ts.
+ */
+export interface RedirectUriPolicy {
+  readonly allowed: readonly string[];
+  readonly allowLoopback: boolean;
+}
+
+/**
  * Complete application configuration
  */
 export interface AppConfig {
@@ -118,6 +128,7 @@ export interface AppConfig {
   readonly google: GoogleOAuthConfig;
   readonly security: SecurityConfig;
   readonly cimd: CimdConfig;
+  readonly redirectUris: RedirectUriPolicy;
   readonly logDir: string;
 }
 
@@ -349,6 +360,14 @@ const cimdConfig: Config.Config<CimdConfig> = Config.all({
   cacheTtlSeconds: Config.integer('CIMD_CACHE_TTL_SECONDS').pipe(Config.withDefault(300)),
 });
 
+const redirectUriConfig: Config.Config<RedirectUriPolicy> = Config.all({
+  allowed: Config.array(Config.string(), 'ALLOWED_REDIRECT_URIS').pipe(
+    Config.map((uris) => uris.map((uri) => uri.trim()).filter((uri) => uri.length > 0)),
+    Config.withDefault(['https://claude.ai/api/mcp/auth_callback', 'https://claude.com/api/mcp/auth_callback']),
+  ),
+  allowLoopback: Config.boolean('ALLOW_LOOPBACK_REDIRECT_URIS').pipe(Config.withDefault(true)),
+});
+
 /**
  * Directory for the rotating file log. Exported on its own so logging-effect.ts can read it
  * without importing the full app config (which itself logs through logging-effect.ts).
@@ -403,6 +422,7 @@ export const appConfigEffect = Effect.gen(function* () {
   );
 
   const cimd = yield* cimdConfig;
+  const redirectUris = yield* redirectUriConfig;
   const logDir = yield* logDirConfig;
   console.warn('[config:cimd] CIMD Settings:', cimd);
   return {
@@ -419,6 +439,7 @@ export const appConfigEffect = Effect.gen(function* () {
     google,
     security,
     cimd,
+    redirectUris,
     logDir,
   };
 });

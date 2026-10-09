@@ -11,7 +11,6 @@ export function requestLogger(req: Request, res: Response, next: NextFunction) {
     url: req.originalUrl,
     envXsrfToken: appConfig.xsrfHeaderName,
     ip: req.ip,
-    body: req.body,
     userAgent: req.headers['user-agent'] ?? 'Empty UA',
   };
   if (req.originalUrl !== '/favicon.ico' && logStarts.test(res.locals.logData.userAgent)) {

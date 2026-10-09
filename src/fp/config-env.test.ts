@@ -274,6 +274,27 @@ describe('fp/config', () => {
       expect(result.security.jwtIssuer).toBe('http://localhost:3000');
       expect(result.middlewareRedirectUri).toBe('http://localhost:3000/callback');
       expect(result.dcrOriginRedirectUri).toBe('https://claude.ai/api/mcp/auth_callback');
+      expect(result.redirectUris).toEqual({
+        allowed: ['https://claude.ai/api/mcp/auth_callback', 'https://claude.com/api/mcp/auth_callback'],
+        allowLoopback: true,
+      });
+    });
+  });
+
+  describe('redirect URI policy', () => {
+    it('reads a comma-separated allowlist and the loopback switch', async () => {
+      process.env.APP_ENV = 'development';
+      process.env.BASE_URL = 'http://dev.domain.tld:3000';
+      process.env.HYDRA_PUBLIC_URL = 'http://dev.domain.tld:4444';
+      process.env.ALLOWED_REDIRECT_URIS = 'https://a.example.com/cb, https://b.example.com/cb,';
+      process.env.ALLOW_LOOPBACK_REDIRECT_URIS = 'false';
+
+      const result = await Effect.runPromise(appConfigEffect);
+
+      expect(result.redirectUris).toEqual({
+        allowed: ['https://a.example.com/cb', 'https://b.example.com/cb'],
+        allowLoopback: false,
+      });
     });
   });
 
