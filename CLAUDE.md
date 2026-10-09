@@ -55,7 +55,7 @@ npm run build && npm run serve:dev         # run locally against /etc/hydra-head
 - ESM with `module: nodenext`, so relative imports must use the `.js` extension, even from `.ts` files.
 - ESLint 10 flat config with `eslint-plugin-import-x` (TypeScript resolver), enforcing import order, `consistent-type-imports` and `no-floating-promises`; also `eslint-plugin-functional`.
 - Lint runs with `--max-warnings 0`, so `warn` rules fail too. `npm run ci` and `npm run build` fail on any lint, format, knip or type error, and Rollup fails on any warning except two allowlisted ones from bundled dependencies (see `LINTING.md`).
-- CI: `RC` (the deployed branch) is tested and built by Woodpecker (`.woodpecker.yml`: `npm ci`, `npm run ci`, then the Docker image build); it runs only for pushes to `RC` and PRs based on `RC`. GitHub Actions (`.github/workflows/ci.yml`) also runs typecheck, lint, format check, knip, tests and build on Node 24. `package-lock.json` is committed; install with `npm ci`.
+- CI: `RC` (the deployed branch) is tested and built by Woodpecker (`.woodpecker.yml`: `npm ci`, `npm run ci`, then the Docker image build); it runs only for pushes to `RC` and PRs based on `RC`. It is the only CI; there is no GitHub Actions workflow. `package-lock.json` is committed; install with `npm ci`.
 - The rotating file logger writes to `LOG_DIR` (default `/var/log/hydra-headless-ts`); set `LOG_DIR` when that path isn't writable, e.g. running tests outside the server.
 
 ## Deployment notes
