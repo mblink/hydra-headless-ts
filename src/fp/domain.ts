@@ -21,6 +21,8 @@ export const PKCEStateSchema = Schema.Struct({
   redirect_uri: Schema.String,
   client_id: Schema.String,
   timestamp: Schema.Number,
+  // Express session that started the flow; the Google callback must come from the same session
+  session_id: Schema.optional(Schema.String),
 })
 export type PKCEState = typeof PKCEStateSchema.Type
 

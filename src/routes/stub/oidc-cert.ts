@@ -36,7 +36,7 @@ export const oidcConformityMaybeFakeSession = (
     return session
   }
 
-  const idToken: { [key: string]: any } = {}
+  const idToken: { [key: string]: unknown } = {}
 
   // If the email scope was granted, fake the email claims.
   if (grantScope.indexOf("email") > -1) {

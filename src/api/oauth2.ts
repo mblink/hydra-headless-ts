@@ -261,7 +261,7 @@ export const makeOAuth2ApiService = (config: OAuth2ApiConfig): OAuth2ApiService 
   /**
    * Helper to build URL with query params
    */
-  const buildUrl = (path: string, params?: Record<string, any>): string => {
+  const buildUrl = (path: string, params?: Record<string, unknown>): string => {
     const url = new URL(path, baseUrl)
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -280,8 +280,8 @@ export const makeOAuth2ApiService = (config: OAuth2ApiConfig): OAuth2ApiService 
     method: string,
     path: string,
     options?: {
-      query?: Record<string, any>
-      body?: any
+      query?: Record<string, unknown>
+      body?: unknown
       contentType?: string
     }
   ): Effect.Effect<A, HttpError> =>
@@ -310,8 +310,8 @@ export const makeOAuth2ApiService = (config: OAuth2ApiConfig): OAuth2ApiService 
     method: string,
     path: string,
     options?: {
-      query?: Record<string, any>
-      body?: any
+      query?: Record<string, unknown>
+      body?: unknown
       contentType?: string
     }
   ): Effect.Effect<void, HttpError> =>

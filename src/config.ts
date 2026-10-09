@@ -5,6 +5,7 @@
 import connectPgSimple from 'connect-pg-simple'
 import session from 'express-session'
 import { loadAppConfigSync, getHydraAdminUrl, getHydraInternalUrl } from './fp/config.js'
+import { syncLogger } from './logging-effect.js'
 
 /**
  * Load configuration from environment
@@ -53,16 +54,6 @@ export const pgConfig = {
 export const DCR_MASTER_CLIENT_ID = appConfig.dcrMasterClientId
 
 /**
- * CSRF token generation
- *
- * Re-exported from setup/index.ts for convenience.
- * Uses csrf-csrf's double-submit cookie pattern.
- *
- * @deprecated Import directly from './setup/index.js' instead
- */
-export { generateCsrfToken, doubleCsrfProtection } from './setup/index.js'
-
-/**
  * PostgreSQL session store
  */
 export const PgStore = connectPgSimple(session)
@@ -70,7 +61,6 @@ export const PgStore = connectPgSimple(session)
 /**
  * Log loaded configuration (without secrets)
  */
-import { syncLogger } from './logging-effect.js'
 syncLogger.info('Configuration loaded', {
   environment: appConfig.environment,
   domain: appConfig.domain,

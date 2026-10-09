@@ -3,6 +3,8 @@
  * Generates and verifies JWTs for OAuth2 token responses
  * Fetches signing keys from Hydra's JWKS endpoint
  */
+import crypto from 'crypto'
+import axios from 'axios'
 import { Effect, Context, Layer } from 'effect'
 import {
   SignJWT,
@@ -12,10 +14,8 @@ import {
   type JWTPayload,
   type JWK,
 } from 'jose'
-import axios from 'axios'
-import crypto from 'crypto'
-import { ParseError, NetworkError, UnauthorizedEmail, type AppError } from '../errors.js'
 import { syncLogger } from '../../logging-effect.js'
+import { ParseError, UnauthorizedEmail, type AppError } from '../errors.js'
 import { isEmailAllowed } from './emailAllowlist.js'
 
 /**
@@ -165,7 +165,7 @@ const fetchHydraKey = async (hydraAdminUrl: string): Promise<HydraKey> => {
     }
 
     // Import the private key from JWK
-    const privateKey = await importJWK(jwk, jwk.alg || 'RS256')
+    const privateKey = await importJWK(jwk, jwk.alg ?? 'RS256')
 
     // Ensure we got a CryptoKey (not Uint8Array)
     if (!(privateKey instanceof CryptoKey)) {

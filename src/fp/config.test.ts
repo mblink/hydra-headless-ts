@@ -11,6 +11,9 @@ describe('fp/config', () => {
   beforeEach(() => {
     // Reset environment
     process.env = { ...originalEnv }
+    // Required outside local; the secrets tests below unset them
+    process.env.SESSION_SECRET = 'test-session-secret'
+    process.env.COOKIE_SECRET = 'test-cookie-secret'
   })
 
   afterEach(() => {
@@ -147,6 +150,49 @@ describe('fp/config', () => {
       expect(result.google.clientId).toBeUndefined()
       expect(result.google.clientSecret).toBeUndefined()
       expect(result.google.redirectUri).toBeDefined()
+    })
+  })
+
+  describe('appConfigEffect - secrets', () => {
+    const setStagingEnv = () => {
+      process.env.APP_ENV = 'staging'
+      process.env.BASE_URL = 'https://auth.staging.domain.tld'
+      process.env.HYDRA_PUBLIC_URL = 'https://auth.staging.domain.tld'
+    }
+
+    it('refuses to start outside local without a session or cookie secret', async () => {
+      setStagingEnv()
+      delete process.env.SESSION_SECRET
+      delete process.env.COOKIE_SECRET
+
+      const result = await Effect.runPromise(Effect.either(appConfigEffect))
+
+      expect(result._tag).toBe('Left')
+      if (result._tag === 'Left') {
+        expect(String(result.left)).toContain('SESSION_SECRET')
+        expect(String(result.left)).toContain('COOKIE_SECRET')
+      }
+    })
+
+    it('uses the configured secrets', async () => {
+      setStagingEnv()
+
+      const result = await Effect.runPromise(appConfigEffect)
+
+      expect(result.security.sessionSecret).toBe('test-session-secret')
+      expect(result.security.cookieSecret).toBe('test-cookie-secret')
+    })
+
+    it('falls back to development secrets locally', async () => {
+      process.env.APP_ENV = 'local'
+      process.env.BASE_URL = 'http://localhost:3000'
+      delete process.env.SESSION_SECRET
+      delete process.env.COOKIE_SECRET
+
+      const result = await Effect.runPromise(appConfigEffect)
+
+      expect(result.security.sessionSecret).toBe('local-dev-session-secret')
+      expect(result.security.cookieSecret).toBe('local-dev-cookie-secret')
     })
   })
 

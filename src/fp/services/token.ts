@@ -3,8 +3,8 @@
  * Returns JWTs instead of Google's opaque access tokens
  * Uses Effect.gen for readable async code with dependency injection
  */
-import { Effect } from 'effect'
 import crypto from 'crypto'
+import { Effect } from 'effect'
 import { decodeJwt } from 'jose'
 import {
   PKCEStateSchema,
@@ -14,11 +14,12 @@ import {
 } from '../domain.js'
 import {
   type AppError,
+  InvalidGrant,
   MissingParameter,
   UnauthorizedEmail,
 } from '../errors.js'
-import { isEmailAllowed } from './emailAllowlist.js'
 import { validatePKCE, parseScopeString, validateScopes } from '../validation.js'
+import { isEmailAllowed } from './emailAllowlist.js'
 import { GoogleOAuthService } from './google.js'
 import { JWTService } from './jwt.js'
 import { RedisService, createOAuthRedisOps } from './redis.js'
@@ -77,6 +78,14 @@ export const processAuthCodeGrant = (
       }
     }
 
+    // The callback stores the Google account id from the verified ID token
+    const subject = authData.subject
+    if (!subject) {
+      return yield* Effect.fail(
+        new InvalidGrant({ reason: 'Authorization code has no authenticated subject' })
+      )
+    }
+
     // Step 5: Store Google's tokens in Redis (indexed by JTI)
     // Use the originally-requested scope from the PKCE state (e.g. "openid profile email offline_access")
     // rather than Google's URL-format scope (e.g. "https://www.googleapis.com/auth/...").
@@ -88,7 +97,7 @@ export const processAuthCodeGrant = (
       google_refresh_token: tokenObj.refresh_token ?? '',
       google_id_token: tokenObj.id_token,
       scope: grantedScope,
-      subject: authData.subject ?? 'user',
+      subject,
       client_id: pkceState.client_id,
       expires_at: Date.now() + (tokenObj.expires_in * 1000),
       updated_at: Date.now(),

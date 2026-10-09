@@ -1,5 +1,5 @@
 
-import { Effect, pipe, Schema } from 'effect'
+import { Effect, pipe } from 'effect'
 import { OAuth2ApiService } from './api/oauth2.js'
 import { appConfig, DCR_MASTER_CLIENT_ID } from './config.js';
 import { HttpStatusError, type HttpError } from './fp/errors.js';

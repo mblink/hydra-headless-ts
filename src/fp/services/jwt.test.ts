@@ -1,9 +1,9 @@
 import { Effect, Either } from 'effect'
-import { describe, it, expect, vi, beforeEach, assert } from 'vitest'
 import { createRemoteJWKSet, jwtVerify } from 'jose'
+import { describe, it, expect, vi, beforeEach, assert } from 'vitest'
+import { ParseError, UnauthorizedEmail } from '../errors.js'
 import { isEmailAllowed } from './emailAllowlist.js'
 import { makeJWTService, type JWTConfig } from './jwt.js'
-import { ParseError, UnauthorizedEmail } from '../errors.js'
 
 vi.mock('./emailAllowlist.js', () => ({
   isEmailAllowed: vi.fn(),

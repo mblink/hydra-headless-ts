@@ -1,12 +1,12 @@
 import { Effect, Either, Layer } from 'effect'
-import { describe, it, expect, vi, beforeEach, assert } from 'vitest'
 import { decodeJwt } from 'jose'
+import { describe, it, expect, vi, beforeEach, assert } from 'vitest'
+import { InvalidGrant, UnauthorizedEmail, ParseError } from '../errors.js'
 import { isEmailAllowed } from './emailAllowlist.js'
-import { processRefreshTokenGrant, processAuthCodeGrant } from './token.js'
-import { RedisService } from './redis.js'
 import { GoogleOAuthService } from './google.js'
 import { JWTService } from './jwt.js'
-import { UnauthorizedEmail, ParseError } from '../errors.js'
+import { RedisService } from './redis.js'
+import { processRefreshTokenGrant, processAuthCodeGrant } from './token.js'
 import type { JWTRefreshData, GoogleTokenData, AuthCodeData, PKCEState } from '../domain.js'
 
 vi.mock('./emailAllowlist.js', () => ({ isEmailAllowed: vi.fn() }))
@@ -71,7 +71,7 @@ const stubGoogleOAuth = {
 
 // Stub for JWTService — only called after the email check passes.
 const stubJWT = {
-  sign: () => Effect.succeed('stub-access-token'),
+  sign: vi.fn(() => Effect.succeed('stub-access-token')),
   verify: () => Effect.fail(new ParseError({ message: 'stub' })),
   generateJti: () => Effect.succeed('stub-jti'),
   getJWKS: () => Effect.fail(new ParseError({ message: 'stub' })),
@@ -131,6 +131,8 @@ const validAuthCodeData: AuthCodeData = {
       token_type: 'Bearer',
     },
   },
+  // Google account id, stored by the callback from the verified ID token
+  subject: 'google-user-123',
 }
 
 const makeAuthCodeRedis = (authCodeData: AuthCodeData = validAuthCodeData): RedisService => {
@@ -200,6 +202,7 @@ describe('processAuthCodeGrant email choke point', () => {
 
   it('skips email check and proceeds when id_token is absent', async () => {
     const dataWithoutIdToken: AuthCodeData = {
+      ...validAuthCodeData,
       google_tokens: {
         tokens: { ...validAuthCodeData.google_tokens.tokens, id_token: undefined },
       },
@@ -225,6 +228,35 @@ describe('processAuthCodeGrant email choke point', () => {
       scope: 'openid',
     })
     expect(isEmailAllowed).toHaveBeenCalledWith('user@bondlink.com')
+  })
+})
+
+describe('processAuthCodeGrant subject', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(isEmailAllowed).mockReturnValue(true)
+    vi.mocked(decodeJwt).mockReturnValue({ email: 'user@bondlink.com' } as any)
+  })
+
+  it('signs the token for the Google account id', async () => {
+    const result = await runAuthCodeGrant(makeAuthCodeRedis())
+
+    expect(result._tag).toBe('Right')
+    expect(stubJWT.sign).toHaveBeenCalledWith(
+      expect.objectContaining({ sub: 'google-user-123' }),
+      expect.anything(),
+      expect.anything()
+    )
+  })
+
+  it('rejects an auth code without an authenticated subject instead of using a placeholder', async () => {
+    const { subject: _, ...withoutSubject } = validAuthCodeData
+
+    const result = await runAuthCodeGrant(makeAuthCodeRedis(withoutSubject))
+
+    expect(result._tag).toBe('Left')
+    assert(Either.isLeft(result))
+    expect(result.left).toBeInstanceOf(InvalidGrant)
   })
 })
 

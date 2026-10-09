@@ -24,14 +24,14 @@ export { Effect, pipe }
 /**
  * Utility type for extracting the success type from Effect
  */
-export type Unwrap<T> = T extends Effect.Effect<infer A, any, any> ? A : never
+export type Unwrap<T> = T extends Effect.Effect<infer A, unknown, unknown> ? A : never
 
 /**
  * Utility type for extracting the error type from Effect
  */
-export type UnwrapError<T> = T extends Effect.Effect<any, infer E, any> ? E : never
+export type UnwrapError<T> = T extends Effect.Effect<unknown, infer E, unknown> ? E : never
 
 /**
  * Utility type for extracting the requirements type from Effect
  */
-export type UnwrapRequirements<T> = T extends Effect.Effect<any, any, infer R> ? R : never
+export type UnwrapRequirements<T> = T extends Effect.Effect<unknown, unknown, infer R> ? R : never

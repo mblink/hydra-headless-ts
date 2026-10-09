@@ -2,7 +2,7 @@
  * Unified Effect-based logging with file output
  * Replaces jsonLogger with Effect's Logger while maintaining file output
  */
-import { Logger, Layer, LogLevel } from 'effect'
+import { Logger } from 'effect'
 import { createStream } from 'rotating-file-stream'
 /**
  * Rotating file stream for persistent logs
@@ -21,17 +21,12 @@ export const accessLogStream = createStream('hydra-headless.log', {
 export const customLogger = Logger.make<unknown, void>(
   ({ logLevel, message, annotations, spans, fiberId, date }) => {
     // Convert annotations HashMap to plain object
-    const annotationsObj: Record<string, unknown> = {}
-
-    for (const [key, value] of annotations) {
-      annotationsObj[key] = value
-    }
+    const annotationsObj: Record<string, unknown> = Object.fromEntries(annotations)
 
     // Convert spans to object
-    const spansObj: Record<string, unknown> = {}
-    for (const span of spans) {
-      spansObj[span.label] = span
-    }
+    const spansObj: Record<string, unknown> = Object.fromEntries(
+      Array.from(spans, (span) => [span.label, span])
+    )
 
     // Get fiberId as string
     const fiberIdStr = String(fiberId)

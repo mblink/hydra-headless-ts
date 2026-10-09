@@ -20,8 +20,8 @@ const mapErrorToHttp = (error: AppError): { status: number; message: string } =>
       return { status: error.status, message: error.statusText }
     case 'NetworkError':
       return { status: 500, message: 'Network error communicating with Hydra' }
-    case 'RedisKeyNotFound':
-      return { status: 400, message: 'Session not found or expired' }
+    case 'InvalidState':
+      return { status: 400, message: 'Authorization request not found or expired' }
     default:
       return { status: 500, message: 'Internal server error' }
   }

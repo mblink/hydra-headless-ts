@@ -2,10 +2,8 @@
  * Consent flow business logic using Effect
  */
 import { Effect } from 'effect'
-import { PKCEStateSchema } from '../domain.js'
-import { type AppError } from '../errors.js'
+import { type AppError, InvalidState } from '../errors.js'
 import { HydraService } from './hydra.js'
-import { RedisService, createOAuthRedisOps } from './redis.js'
 
 /**
  * Configuration for Google OAuth
@@ -34,10 +32,23 @@ const buildGoogleAuthUrl = (
 }
 
 /**
+ * The flow id the /oauth2/auth proxy put in `state` (see setup/proxy.ts). Hydra keeps the
+ * authorization URL it received as the consent request's request_url.
+ */
+const flowIdFromRequestUrl = (requestUrl: string | undefined): string | undefined => {
+  if (!requestUrl) return undefined
+  try {
+    return new URL(requestUrl, 'http://localhost').searchParams.get('state') ?? undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * Process consent request
  * 1. Get consent info from Hydra
  * 2. Accept consent
- * 3. Build and return Google OAuth URL
+ * 3. Build and return Google OAuth URL, with the flow id as `state`
  */
 export const processConsent = (
   challenge: string,
@@ -62,6 +73,13 @@ export const processConsent = (
       })
     )
 
+    const flowId = flowIdFromRequestUrl(consentInfo.request_url)
+    if (!flowId) {
+      return yield* Effect.fail(
+        new InvalidState({ reason: 'Consent request is not linked to an /oauth2/auth flow' })
+      )
+    }
+
     // Step 2: Accept consent with requested scopes
     yield* hydra.acceptConsentRequest(challenge, {
       grant_scope: requestedScope ? [requestedScope] : consentInfo.requested_scope,
@@ -75,44 +93,11 @@ export const processConsent = (
     })
 
     // Step 3: Build Google OAuth URL
-    const googleUrl = buildGoogleAuthUrl(config, challenge)
+    const googleUrl = buildGoogleAuthUrl(config, flowId)
 
     yield* Effect.logInfo('Redirecting to Google OAuth').pipe(
       Effect.annotateLogs({ url: googleUrl })
     )
 
     return googleUrl
-  })
-
-/**
- * Process consent with PKCE from session
- * This version fetches PKCE state from Redis first
- */
-export const processConsentWithPKCE = (
-  challenge: string,
-  sessionId: string,
-  config: ConsentConfig,
-  requestedScope?: string
-): Effect.Effect<string, AppError, HydraService | RedisService> =>
-  Effect.gen(function* () {
-    // Access services
-    const redis = yield* RedisService
-
-    const redisOps = createOAuthRedisOps(redis)
-
-    // Fetch PKCE from Redis
-    const pkceData = yield* redisOps.getPKCEState(sessionId, PKCEStateSchema)
-
-    // Continue with consent flow
-    const baseUrl = yield* processConsent(challenge, config, requestedScope)
-
-    // Use actual state from PKCE
-    const url = new URL(baseUrl)
-    url.searchParams.set('state', pkceData.state || challenge)
-
-    yield* Effect.logInfo('Using PKCE state from session').pipe(
-      Effect.annotateLogs({ sessionId, state: pkceData.state })
-    )
-
-    return url.toString()
   })
