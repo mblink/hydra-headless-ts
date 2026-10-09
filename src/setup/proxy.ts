@@ -61,7 +61,9 @@ const proxyOptions = {
         syncLogger.info('Setting null contacts to [] in /oauth2/register body');
         req.body.contacts = [];
       }
-      if (req.method !== 'GET') {
+      // Mounting under /oauth2/register strips the path, so send the original one. /oauth2/auth
+      // gets its path from pathRewrite (with the flow id as state), which this must not undo.
+      if (parsed.pathname !== '/oauth2/auth') {
         proxyReq.path = req.originalUrl;
       }
       // The body parsers have already consumed the request stream. fixRequestBody re-sends the
@@ -253,6 +255,14 @@ const enhancedProxyMiddleware = async (req: Request, res: Response, next: NextFu
   // path from req.path, so match on the full original path instead
   const { pathname } = new URL(req.originalUrl, 'http://localhost');
   if (pathname === '/oauth2/auth') {
+    // pathRewrite swaps the client's state and PKCE challenge in the query string for a flow id, so
+    // only GET (which RFC 6749 requires the authorization endpoint to support) can be handled
+    if (req.method !== 'GET') {
+      return res.status(405).set('Allow', 'GET').json({
+        error: 'invalid_request',
+        error_description: 'The authorization endpoint only supports GET',
+      });
+    }
     syncLogger.info('=== OAUTH2 AUTHORIZATION ENDPOINT ===', {
       method: req.method,
       path: pathname,
@@ -274,6 +284,8 @@ const enhancedProxyMiddleware = async (req: Request, res: Response, next: NextFu
     const missingParams: string[] = [];
 
     if (!client_id) missingParams.push('client_id');
+    // OAuth lets a client with one registered redirect URI omit it, but /callback redirects to the
+    // stored redirect_uri itself rather than through Hydra, so the flow can't finish without it
     if (!redirect_uri) missingParams.push('redirect_uri');
     if (!response_type) missingParams.push('response_type');
 

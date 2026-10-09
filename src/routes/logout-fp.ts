@@ -41,7 +41,7 @@ const mapErrorToHttp = (error: AppError): { status: number; message: string } =>
  */
 const createLogoutGetHandler = (serviceLayer: Layer.Layer<HydraService>, config: LogoutConfig) => {
   return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const challenge = String(req.query.logout_challenge);
+    const challenge = typeof req.query.logout_challenge === 'string' ? req.query.logout_challenge : '';
 
     if (!challenge) {
       next(new Error('Expected a logout challenge to be set but received none.'));

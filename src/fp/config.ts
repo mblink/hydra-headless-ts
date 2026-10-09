@@ -353,7 +353,11 @@ const cimdConfig: Config.Config<CimdConfig> = Config.all({
  * Directory for the rotating file log. Exported on its own so logging-effect.ts can read it
  * without importing the full app config (which itself logs through logging-effect.ts).
  */
-export const logDirConfig = Config.string('LOG_DIR').pipe(Config.withDefault('/var/log/hydra-headless-ts'));
+// An empty LOG_DIR (e.g. `LOG_DIR=` in an env file) means the default, not the working directory
+export const logDirConfig = Config.string('LOG_DIR').pipe(
+  Config.withDefault(''),
+  Config.map((dir) => dir.trim() || '/var/log/hydra-headless-ts'),
+);
 
 /**
  * Complete application configuration

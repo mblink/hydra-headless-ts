@@ -182,7 +182,7 @@ Build outputs:
 
 ## CI
 
-- `RC` is tested and built by Woodpecker (`.woodpecker.yml`): `npm run ci`, then the Docker image build and push to ECR, then an email to the commit author on failure. GitHub Actions (`.github/workflows/ci.yml`) only exists on `main`.
+- Woodpecker (`.woodpecker.yml`) is the only CI: `npm run ci`, then the Docker image build and push to ECR, then an email to the commit author on failure. There is no GitHub Actions workflow.
 - Woodpecker runs for pushes to `RC` and PRs whose base is `RC`. A PR stacked on another branch gets no checks until it is retargeted to `RC`.
 - The CI image's `/node_modules` is installed from `RC`'s `package.json` when the image is built, so the test step runs `npm ci` first to test a PR's own dependencies from its `package-lock.json`. The image build clones the branch being built (`CI_COMMIT_SOURCE_BRANCH` for a PR, `CI_COMMIT_BRANCH` for a push; see `build/rebuild.sh`).
 

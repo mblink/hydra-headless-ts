@@ -1,6 +1,6 @@
 import { Effect } from 'effect';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { appConfigEffect, loadAppConfigSync } from './config.js';
+import { appConfigEffect, loadAppConfigSync, logDirConfig } from './config.js';
 
 describe('fp/config', () => {
   const originalEnv = { ...process.env };
@@ -246,6 +246,20 @@ describe('fp/config', () => {
       expect(result.database.host).toBe('dbhost');
       expect(result.database.port).toBe(5555);
       expect(result.database.database).toBe('testdb');
+    });
+  });
+
+  describe('logDirConfig', () => {
+    it('uses LOG_DIR when set', () => {
+      process.env.LOG_DIR = '/tmp/hydra-logs';
+      expect(Effect.runSync(logDirConfig)).toBe('/tmp/hydra-logs');
+    });
+
+    it('falls back to the default when LOG_DIR is unset or empty', () => {
+      delete process.env.LOG_DIR;
+      expect(Effect.runSync(logDirConfig)).toBe('/var/log/hydra-headless-ts');
+      process.env.LOG_DIR = '';
+      expect(Effect.runSync(logDirConfig)).toBe('/var/log/hydra-headless-ts');
     });
   });
 
