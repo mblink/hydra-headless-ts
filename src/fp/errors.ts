@@ -209,11 +209,7 @@ export class ClientExistsError extends Data.TaggedError('ClientExists')<{
   clientId: string;
   clients: string[];
 }> {}
-class ClientNotFound extends Data.TaggedError('ClientExists')<{
-  clientId: string;
-}> {}
-type ValidationError =
-  SchemaValidationError | RequiredFieldMissing | InvalidFormat | ClientExistsError | ClientNotFound;
+type ValidationError = SchemaValidationError | RequiredFieldMissing | InvalidFormat | ClientExistsError;
 
 /**
  * Application-level errors (union of all domain errors)

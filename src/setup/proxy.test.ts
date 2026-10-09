@@ -245,4 +245,17 @@ describe('setup/proxy (Hydra passthrough)', () => {
     expect(await res.json()).toMatchObject({ error: 'unsupported_response_type' });
     expect(received).toHaveLength(0);
   });
+
+  it('rejects a POST to /oauth2/auth instead of forwarding it without the flow id', async () => {
+    const res = await fetch(`${appUrl}/oauth2/auth?${authQuery('client-state')}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: '',
+      redirect: 'manual',
+    });
+
+    expect(res.status).toBe(405);
+    expect(res.headers.get('allow')).toBe('GET');
+    expect(received).toHaveLength(0);
+  });
 });
