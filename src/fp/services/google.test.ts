@@ -11,10 +11,10 @@ vi.mock('axios')
 
 // Mock google-auth-library
 vi.mock('google-auth-library', () => ({
-  OAuth2Client: vi.fn().mockImplementation(() => ({
-    generateAuthUrl: vi.fn(),
-    getToken: vi.fn(),
-  })),
+  // Vitest 4+ requires a function/class implementation for mocks called with `new`
+  OAuth2Client: vi.fn(function () {
+    return { generateAuthUrl: vi.fn(), getToken: vi.fn() }
+  }),
 }))
 
 describe('GoogleOAuthService', () => {
@@ -41,8 +41,8 @@ describe('GoogleOAuthService', () => {
         refresh_token: 'refresh-token-123',
         client_id: 'test-client',
         access_token: 'test-access-token',
-        scope: "scopeOne scopeTwo",
-        subject: "test@test.tld",
+        scope: 'scopeOne scopeTwo',
+        subject: 'test@test.tld',
         created_at: Date.now(),
         expires_in: 300,
         updated_at: Date.now(),
@@ -67,12 +67,16 @@ describe('GoogleOAuthService', () => {
       expect(result).toEqual(mockResponse)
       expect(axios.post).toHaveBeenCalledWith(
         'https://oauth2.googleapis.com/token',
+        expect.any(String),
         expect.objectContaining({
-          grant_type: 'refresh_token',
-          refresh_token: 'refresh-token-123',
-        }),
-        expect.any(Object)
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        })
       )
+      const body = new URLSearchParams(vi.mocked(axios.post).mock.calls[0][1] as string)
+      expect(body.get('grant_type')).toBe('refresh_token')
+      expect(body.get('refresh_token')).toBe('refresh-token-123')
+      expect(body.get('client_id')).toBe('test-client-id')
+      expect(body.get('client_secret')).toBe('test-client-secret')
     })
 
     it('should handle Google auth errors', async () => {
@@ -80,8 +84,8 @@ describe('GoogleOAuthService', () => {
         refresh_token: 'refresh-token-123',
         client_id: 'test-client',
         access_token: 'test-access-token',
-        scope: "scopeOne scopeTwo",
-        subject: "test@test.tld",
+        scope: 'scopeOne scopeTwo',
+        subject: 'test@test.tld',
         created_at: Date.now(),
         expires_in: 300,
         updated_at: Date.now(),
@@ -118,8 +122,8 @@ describe('GoogleOAuthService', () => {
         refresh_token: 'refresh-token-123',
         client_id: 'test-client',
         access_token: 'test-access-token',
-        scope: "scopeOne scopeTwo",
-        subject: "test@test.tld",
+        scope: 'scopeOne scopeTwo',
+        subject: 'test@test.tld',
         created_at: Date.now(),
         expires_in: 300,
         updated_at: Date.now(),
@@ -142,8 +146,8 @@ describe('GoogleOAuthService', () => {
         refresh_token: 'refresh-token-123',
         client_id: 'test-client',
         access_token: 'test-access-token',
-        scope: "scopeOne scopeTwo",
-        subject: "test@test.tld",
+        scope: 'scopeOne scopeTwo',
+        subject: 'test@test.tld',
         created_at: Date.now(),
         expires_in: 300,
         updated_at: Date.now(),
@@ -165,11 +169,15 @@ describe('GoogleOAuthService', () => {
   describe('generateAuthUrl', () => {
     it('should generate auth URL successfully', async () => {
       const mockOAuth2Client = {
-        generateAuthUrl: vi.fn().mockReturnValue('https://accounts.google.com/o/oauth2/v2/auth?...'),
+        generateAuthUrl: vi
+          .fn()
+          .mockReturnValue('https://accounts.google.com/o/oauth2/v2/auth?...'),
       }
 
       // Mock the OAuth2Client constructor to return our mock
-      vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client as any)
+      vi.mocked(OAuth2Client).mockImplementation(function () {
+        return mockOAuth2Client as any
+      })
 
       // Recreate service with mocked client
       googleService = makeGoogleOAuthService(mockConfig)
@@ -185,7 +193,9 @@ describe('GoogleOAuthService', () => {
       expect(mockOAuth2Client.generateAuthUrl).toHaveBeenCalledWith({
         access_type: 'offline',
         scope: 'openid profile email',
+        prompt: 'consent',
         state: 'state-123',
+        response_type: 'code',
         redirect_uri: 'https://auth.example.com/callback',
       })
     })
@@ -202,51 +212,6 @@ describe('GoogleOAuthService', () => {
         'state',
         'https://example.com/callback'
       )
-      const result = await Effect.runPromise(Effect.either(program))
-
-      expect(result._tag).toBe('Left')
-    })
-  })
-
-  describe('getTokensFromCode', () => {
-    it('should exchange code for tokens successfully', async () => {
-      const mockTokenResponse = {
-        tokens: {
-          access_token: 'access-token-123',
-          token_type: 'Bearer',
-          expires_in: 3600,
-          refresh_token: 'refresh-token-123',
-          id_token: 'id-token-123',
-        },
-      }
-
-      const mockOAuth2Client = {
-        getToken: vi.fn().mockResolvedValue(mockTokenResponse),
-      }
-
-      vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client as any)
-      googleService = makeGoogleOAuthService(mockConfig)
-
-      const program = googleService.getTokensFromCode(
-        'auth-code-123',
-        'https://auth.example.com/callback'
-      )
-      const result = await Effect.runPromise(program)
-
-      expect(result.access_token).toBe('access-token-123')
-      expect(result.refresh_token).toBe('refresh-token-123')
-      expect(mockOAuth2Client.getToken).toHaveBeenCalledWith('auth-code-123')
-    })
-
-    it('should handle token exchange errors', async () => {
-      const mockOAuth2Client = {
-        getToken: vi.fn().mockRejectedValue(new Error('Invalid code')),
-      }
-
-      vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client as any)
-      googleService = makeGoogleOAuthService(mockConfig)
-
-      const program = googleService.getTokensFromCode('invalid-code', 'https://example.com')
       const result = await Effect.runPromise(Effect.either(program))
 
       expect(result._tag).toBe('Left')
@@ -273,12 +238,16 @@ describe('GoogleOAuthService', () => {
       expect(result.access_token).toBe('new-access-token')
       expect(axios.post).toHaveBeenCalledWith(
         'https://oauth2.googleapis.com/token',
+        expect.any(String),
         expect.objectContaining({
-          grant_type: 'refresh_token',
-          refresh_token: 'refresh-token-123',
-        }),
-        expect.any(Object)
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        })
       )
+      const body = new URLSearchParams(vi.mocked(axios.post).mock.calls[0][1] as string)
+      expect(body.get('grant_type')).toBe('refresh_token')
+      expect(body.get('refresh_token')).toBe('refresh-token-123')
+      expect(body.get('client_id')).toBe('test-client-id')
+      expect(body.get('client_secret')).toBe('test-client-secret')
     })
 
     it('should handle expired refresh token', async () => {
@@ -404,7 +373,7 @@ describe('GoogleOAuthService', () => {
 
       expect(axios.post).toHaveBeenCalledWith(
         'https://custom.example.com/token',
-        expect.any(Object),
+        expect.any(String),
         expect.any(Object)
       )
     })

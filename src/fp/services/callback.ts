@@ -6,7 +6,7 @@ import { Effect } from 'effect'
 import { PKCEStateSchema } from '../domain.js'
 import { type AppError, GoogleAuthError } from '../errors.js'
 import { RedisService, createOAuthRedisOps } from './redis.js'
-import type { AuthCodeData } from '../domain.js';
+import type { AuthCodeData } from '../domain.js'
 
 /**
  * Configuration for callback
@@ -24,6 +24,8 @@ interface GoogleOAuthTokens {
     refresh_token?: string | null
     scope?: string | null
     expires_in?: number | null
+    // google-auth-library replaces expires_in with an absolute expiry_date (ms)
+    expiry_date?: number | null
     id_token?: string | null
     token_type?: string | null
   }
@@ -114,18 +116,25 @@ export const processCallback = (
     // Step 4: Generate new auth_code for passthrough
     const authCode = crypto.randomBytes(32).toString('base64url')
 
+    // google-auth-library replaces Google's relative expires_in with an absolute expiry_date.
+    // Store the absolute time so the delay before the code exchange isn't counted as lifetime.
+    const now = Date.now()
+    const googleExpiresAt =
+      googleTokens.tokens.expiry_date ?? now + (googleTokens.tokens.expires_in ?? 3600) * 1000
+
     const authData: AuthCodeData = {
       google_tokens: {
         tokens: {
           access_token: googleTokens.tokens.access_token,
           scope: googleTokens.tokens.scope ?? '',
-          expires_in: googleTokens.tokens.expires_in ?? 3600,
+          expires_in: Math.max(0, Math.round((googleExpiresAt - now) / 1000)),
           token_type: googleTokens.tokens.token_type ?? 'Bearer',
           refresh_token: googleTokens.tokens.refresh_token ?? undefined,
           id_token: googleTokens.tokens.id_token ?? undefined,
         },
       },
       subject: undefined, // Will be populated from user info if needed
+      google_expires_at: googleExpiresAt,
     }
 
     yield* Effect.logInfo('AuthData').pipe(Effect.annotateLogs({ authData }))
@@ -136,12 +145,8 @@ export const processCallback = (
     yield* redisOps.setAuthCode(authCode, authData, 300)
 
     // Step 6: Delete PKCE session (cleanup) - catch errors to not fail the flow
-    yield* Effect.catchAll(
-      redisOps.deletePKCEState(pkceKey),
-      (err) =>
-        Effect.logError('Failed to delete PKCE session').pipe(
-          Effect.annotateLogs({ err, pkceKey })
-        )
+    yield* Effect.catchAll(redisOps.deletePKCEState(pkceKey), (err) =>
+      Effect.logError('Failed to delete PKCE session').pipe(Effect.annotateLogs({ err, pkceKey }))
     )
 
     // Step 7: Build redirect URL

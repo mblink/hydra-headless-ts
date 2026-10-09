@@ -5,21 +5,21 @@
  * Configuration is loaded from environment variables with proper validation
  * and type safety. Uses Effect for composable, testable configuration.
  */
-import { Config, Effect, Layer, pipe, Context } from 'effect'
+import { Config, Effect, pipe } from 'effect'
 import type { SameSiteType } from 'csrf-csrf'
 
 /**
  * Environment types
  */
-export type AppEnvironment = 'local' | 'development' | 'staging' | 'production'
+type AppEnvironment = 'local' | 'development' | 'staging' | 'production'
 
 /**
  * Domain configuration
  * Separates public-facing domains from private IPs for internal communication
  */
 export interface DomainConfig {
-  readonly public: string   // Public domain (e.g., auth.staging.yourdomain.org)
-  readonly private: string  // Private IP/host for internal services (e.g., 10.1.1.230)
+  readonly public: string // Public domain (e.g., auth.staging.yourdomain.org)
+  readonly private: string // Private IP/host for internal services (e.g., 10.1.1.230)
 }
 
 /**
@@ -35,10 +35,10 @@ export interface ServiceEndpoint {
  */
 export interface HydraConfig {
   readonly public: {
-    readonly url: string      // Public URL for OAuth2 flows
+    readonly url: string // Public URL for OAuth2 flows
     readonly port: number
   }
-  readonly admin: ServiceEndpoint  // Admin API (internal)
+  readonly admin: ServiceEndpoint // Admin API (internal)
 }
 
 /**
@@ -67,7 +67,7 @@ export interface GoogleOAuthConfig {
  * - 'hydra': Sign JWTs with keys from Hydra's JWKS (default)
  * - 'google': Sign JWTs with keys from Google's JWKS for MCP server compatibility
  */
-export type JWTProvider = 'hydra' | 'google'
+type JWTProvider = 'hydra' | 'google'
 
 /**
  * Security configuration
@@ -103,7 +103,16 @@ export interface AppConfig {
   readonly database: DatabaseConfig
   readonly google: GoogleOAuthConfig
   readonly security: SecurityConfig
+  readonly logDir: string
 }
+
+/**
+ * Directory for the rotating file log. Exported on its own so logging-effect.ts can read it
+ * without importing the full app config (which itself logs through logging-effect.ts).
+ */
+export const logDirConfig = Config.string('LOG_DIR').pipe(
+  Config.withDefault('/var/log/hydra-headless-ts')
+)
 
 /**
  * Parse APP_ENV with fallback
@@ -192,9 +201,7 @@ const hydraConfig = (env: AppEnvironment, domain: DomainConfig): Config.Config<H
       port: Config.integer('HYDRA_PUBLIC_PORT').pipe(Config.withDefault(4444)),
     }),
     admin: Config.all({
-      host: Config.string('HYDRA_ADMIN_HOST').pipe(
-        Config.withDefault(domain.private)
-      ),
+      host: Config.string('HYDRA_ADMIN_HOST').pipe(Config.withDefault(domain.private)),
       port: Config.integer('HYDRA_ADMIN_PORT').pipe(Config.withDefault(4445)),
     }),
   })
@@ -220,7 +227,10 @@ const redisConfig = (env: AppEnvironment, domain: DomainConfig): Config.Config<S
 /**
  * Database configuration
  */
-const databaseConfig = (env: AppEnvironment, domain: DomainConfig): Config.Config<DatabaseConfig> => {
+const databaseConfig = (
+  env: AppEnvironment,
+  domain: DomainConfig
+): Config.Config<DatabaseConfig> => {
   const dsn = Config.string('DSN').pipe(
     Config.withDefault(
       isLocalEnvironment(env)
@@ -245,10 +255,7 @@ const databaseConfig = (env: AppEnvironment, domain: DomainConfig): Config.Confi
  * Google OAuth configuration
  * Required for non-local environments
  */
-const googleConfig = (
-  env: AppEnvironment,
-  baseUrl: string
-): Config.Config<GoogleOAuthConfig> => {
+const googleConfig = (env: AppEnvironment, baseUrl: string): Config.Config<GoogleOAuthConfig> => {
   if (isLocalEnvironment(env)) {
     return Config.succeed({
       clientId: undefined,
@@ -276,44 +283,41 @@ const googleConfig = (
 /**
  * Security configuration
  */
-const securityConfig = (env: AppEnvironment, https: boolean, baseUrl: string): Config.Config<SecurityConfig> => {
+const securityConfig = (
+  env: AppEnvironment,
+  https: boolean,
+  baseUrl: string
+): Config.Config<SecurityConfig> => {
   const isLocal = isLocalEnvironment(env)
 
   return Config.all({
     sessionSecret: Config.string('SESSION_SECRET').pipe(
-      Config.withDefault(
-        isLocal ? 'local-dev-secret' : 'change-me-in-production'
-      )
+      Config.withDefault(isLocal ? 'local-dev-secret' : 'change-me-in-production')
     ),
     cookieSecret: Config.string('COOKIE_SECRET').pipe(
       Config.withDefault('G6KaOf8aJsLagw566he8yxOTTO3tInKD')
     ),
     csrfTokenName: Config.succeed(isLocal ? 'dev_xsrf_token' : 'xsrf_token'),
     xsrfHeaderName: Config.succeed(isLocal ? 'dev_xsrf_token' : 'xsrf_token'),
-    sameSite: Config.succeed<SameSiteType>(isLocal ? 'lax' : 'none'),
-    httpOnly: Config.succeed(!https),
+    // Browsers drop SameSite=None cookies that are not Secure, so only use None over https
+    sameSite: Config.succeed<SameSiteType>(!isLocal && https ? 'none' : 'lax'),
+    // Cookies we set are never read by client-side JS
+    httpOnly: Config.succeed(true),
     secure: Config.succeed(https),
-    mockTlsTermination: Config.boolean('MOCK_TLS_TERMINATION').pipe(
-      Config.withDefault(false)
-    ),
+    mockTlsTermination: Config.boolean('MOCK_TLS_TERMINATION').pipe(Config.withDefault(false)),
     jwtSecret: Config.string('JWT_SECRET').pipe(
       Config.withDefault(
         isLocal ? 'local-dev-jwt-secret-change-in-production' : 'CHANGE_ME_IN_PRODUCTION'
       )
     ),
-    jwtIssuer: Config.string('JWT_ISSUER').pipe(
-      Config.withDefault(baseUrl)
-    ),
-    jwtAudience: Config.string('JWT_AUDIENCE').pipe(
-      Config.withDefault(baseUrl)
-    ),
+    jwtIssuer: Config.string('JWT_ISSUER').pipe(Config.withDefault(baseUrl)),
+    jwtAudience: Config.string('JWT_AUDIENCE').pipe(Config.withDefault(baseUrl)),
     jwtProvider: pipe(
       Config.string('JWT_PROVIDER'),
       Config.withDefault('hydra' as JWTProvider),
       Config.validate({
         message: 'Invalid JWT_PROVIDER, must be: hydra or google',
-        validation: (value): value is JWTProvider =>
-          value === 'hydra' || value === 'google',
+        validation: (value): value is JWTProvider => value === 'hydra' || value === 'google',
       })
     ),
   })
@@ -343,6 +347,8 @@ export const appConfigEffect = Effect.gen(function* () {
     Config.withDefault(`${baseUrl}/callback`)
   )
 
+  const logDir = yield* logDirConfig
+
   const dcrOriginRedirectUri = yield* Config.string('DCR_ORIGIN_REDIRECT_URI').pipe(
     Config.withDefault('https://claude.ai/api/mcp/auth_callback')
   )
@@ -355,6 +361,7 @@ export const appConfigEffect = Effect.gen(function* () {
     middlewareRedirectUri,
     dcrMasterClientId,
     dcrOriginRedirectUri,
+    logDir,
     hydra,
     redis,
     database,
@@ -362,16 +369,6 @@ export const appConfigEffect = Effect.gen(function* () {
     security,
   }
 })
-
-/**
- * Service tag for AppConfig
- */
-export const AppConfigService = Context.GenericTag<AppConfig>('@services/AppConfig')
-
-/**
- * Layer that provides AppConfig
- */
-export const AppConfigLive = Layer.effect(AppConfigService, appConfigEffect)
 
 /**
  * Load configuration synchronously (for backwards compatibility)
@@ -385,22 +382,11 @@ export const loadAppConfigSync = (): AppConfig => {
 /**
  * Helper functions for constructing URLs
  */
-export const constructUrl = (protocol: 'http' | 'https', host: string, port?: number): string => {
+const constructUrl = (protocol: 'http' | 'https', host: string, port?: number): string => {
   if (!port || (protocol === 'http' && port === 80) || (protocol === 'https' && port === 443)) {
     return `${protocol}://${host}`
   }
   return `${protocol}://${host}:${port}`
-}
-
-export const getJWKSUrl = (config: AppConfig): string => {
-  const protocol = config.security.mockTlsTermination ? 'http' : 'https'
-  return `${constructUrl(protocol, config.domain.public, config.port)}/.well-known/jwks.json`
-}
-/**
- * Get Hydra public URL
- */
-export const getHydraPublicUrl = (config: AppConfig): string => {
-  return config.hydra.public.url
 }
 
 /**

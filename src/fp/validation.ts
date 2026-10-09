@@ -2,7 +2,7 @@
  * Pure validation functions using Effect for error handling
  */
 import crypto from 'crypto'
-import { Effect, Schema, ParseResult , pipe } from 'effect'
+import { Effect, Schema, ParseResult, pipe } from 'effect'
 import {
   InvalidPKCE,
   InvalidScope,
@@ -22,14 +22,14 @@ export const validateSchema = <A, I>(
 ): Effect.Effect<A, SchemaValidationError> =>
   pipe(
     Schema.decodeUnknown(schema)(value),
-    Effect.mapError((error) =>
-      new SchemaValidationError({
-        errors: ParseResult.ArrayFormatter.formatErrorSync(error).map((e) => e.message),
-        value,
-      })
+    Effect.mapError(
+      (error) =>
+        new SchemaValidationError({
+          errors: ParseResult.ArrayFormatter.formatErrorSync(error).map((e) => e.message),
+          value,
+        })
     )
   )
-
 
 /**
  * Pure PKCE validation function
@@ -45,10 +45,7 @@ export const validatePKCE = (
       let computedChallenge: string
 
       if (method === 'S256') {
-        computedChallenge = crypto
-          .createHash('sha256')
-          .update(verifier)
-          .digest('base64url')
+        computedChallenge = crypto.createHash('sha256').update(verifier).digest('base64url')
       } else if (method === 'plain') {
         computedChallenge = verifier
       } else {
@@ -58,9 +55,7 @@ export const validatePKCE = (
       if (computedChallenge === challenge) {
         return true as const
       } else {
-        throw new Error(
-          `Challenge mismatch: expected ${challenge}, got ${computedChallenge}`
-        )
+        throw new Error(`Challenge mismatch: expected ${challenge}, got ${computedChallenge}`)
       }
     },
     catch: (error) =>
@@ -74,13 +69,13 @@ export const validatePKCE = (
  * Ensure the client doesn't exists in the clients table
  */
 export const validateCreateClient = (
-    clientId: string,
-    clients: string[]
-  ): Effect.Effect<true, ClientExistsError> => {
-    return clients.includes(clientId)
-      ? Effect.fail(new ClientExistsError({ clientId, clients}))
-      : Effect.succeed(true as const)
-  }
+  clientId: string,
+  clients: string[]
+): Effect.Effect<true, ClientExistsError> => {
+  return clients.includes(clientId)
+    ? Effect.fail(new ClientExistsError({ clientId, clients }))
+    : Effect.succeed(true as const)
+}
 /**
  * Validate OAuth2 scopes
  * Ensures all requested scopes are within the granted scopes
@@ -110,9 +105,7 @@ export const validateRequired = <T>(
   field: string,
   value: T | null | undefined
 ): Effect.Effect<T, RequiredFieldMissing> => {
-  return value != null
-    ? Effect.succeed(value)
-    : Effect.fail(new RequiredFieldMissing({ field }))
+  return value != null ? Effect.succeed(value) : Effect.fail(new RequiredFieldMissing({ field }))
 }
 
 /**
@@ -137,7 +130,5 @@ export const validateNonEmpty = (
  * Collect all validations
  * Runs all validations in parallel
  */
-export const validateAll = <E, A>(
-  validations: Effect.Effect<A, E>[]
-): Effect.Effect<A[], E> =>
+export const validateAll = <E, A>(validations: Effect.Effect<A, E>[]): Effect.Effect<A[], E> =>
   Effect.all(validations, { concurrency: 'unbounded' })

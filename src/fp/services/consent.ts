@@ -2,10 +2,8 @@
  * Consent flow business logic using Effect
  */
 import { Effect } from 'effect'
-import { PKCEStateSchema } from '../domain.js'
 import { type AppError } from '../errors.js'
 import { HydraService } from './hydra.js'
-import { RedisService, createOAuthRedisOps } from './redis.js'
 
 /**
  * Configuration for Google OAuth
@@ -18,10 +16,7 @@ export interface ConsentConfig {
 /**
  * Build Google OAuth URL
  */
-const buildGoogleAuthUrl = (
-  config: ConsentConfig,
-  state: string
-): string => {
+const buildGoogleAuthUrl = (config: ConsentConfig, state: string): string => {
   const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth')
   googleAuthUrl.searchParams.set('client_id', config.googleClientId)
   googleAuthUrl.searchParams.set('redirect_uri', config.middlewareRedirectUri)
@@ -48,9 +43,7 @@ export const processConsent = (
     // Access services
     const hydra = yield* HydraService
 
-    yield* Effect.logInfo('Processing consent challenge').pipe(
-      Effect.annotateLogs({ challenge })
-    )
+    yield* Effect.logInfo('Processing consent challenge').pipe(Effect.annotateLogs({ challenge }))
 
     // Step 1: Get consent info
     const consentInfo = yield* hydra.getConsentRequest(challenge)
@@ -82,37 +75,4 @@ export const processConsent = (
     )
 
     return googleUrl
-  })
-
-/**
- * Process consent with PKCE from session
- * This version fetches PKCE state from Redis first
- */
-export const processConsentWithPKCE = (
-  challenge: string,
-  sessionId: string,
-  config: ConsentConfig,
-  requestedScope?: string
-): Effect.Effect<string, AppError, HydraService | RedisService> =>
-  Effect.gen(function* () {
-    // Access services
-    const redis = yield* RedisService
-
-    const redisOps = createOAuthRedisOps(redis)
-
-    // Fetch PKCE from Redis
-    const pkceData = yield* redisOps.getPKCEState(sessionId, PKCEStateSchema)
-
-    // Continue with consent flow
-    const baseUrl = yield* processConsent(challenge, config, requestedScope)
-
-    // Use actual state from PKCE
-    const url = new URL(baseUrl)
-    url.searchParams.set('state', pkceData.state || challenge)
-
-    yield* Effect.logInfo('Using PKCE state from session').pipe(
-      Effect.annotateLogs({ sessionId, state: pkceData.state })
-    )
-
-    return url.toString()
   })

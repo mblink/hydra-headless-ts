@@ -37,32 +37,6 @@ export const appConfig = (() => {
 })()
 
 /**
- * Postgres configuration for connection pool
- */
-export const pgConfig = {
-  user: appConfig.database.user,
-  password: appConfig.database.password,
-  database: appConfig.database.database,
-  host: appConfig.database.host,
-  port: appConfig.database.port,
-}
-
-/**
- * DCR Master Client ID
- */
-export const DCR_MASTER_CLIENT_ID = appConfig.dcrMasterClientId
-
-/**
- * CSRF token generation
- *
- * Re-exported from setup/index.ts for convenience.
- * Uses csrf-csrf's double-submit cookie pattern.
- *
- * @deprecated Import directly from './setup/index.js' instead
- */
-export { generateCsrfToken, doubleCsrfProtection } from './setup/index.js'
-
-/**
  * PostgreSQL session store
  */
 export const PgStore = connectPgSimple(session)

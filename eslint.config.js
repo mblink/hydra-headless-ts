@@ -1,7 +1,7 @@
-import eslint from '@eslint/js'
 import tseslint from '@typescript-eslint/eslint-plugin'
 import tsparser from '@typescript-eslint/parser'
-import importPlugin from 'eslint-plugin-import'
+import { createTypeScriptImportResolver } from 'eslint-import-resolver-typescript'
+import importPlugin from 'eslint-plugin-import-x'
 import promisePlugin from 'eslint-plugin-promise'
 import functionalPlugin from 'eslint-plugin-functional'
 
@@ -12,6 +12,7 @@ export default [
       'lib/**',
       'node_modules/**',
       'coverage/**',
+      '.rollup.cache/**',
       '*.config.js',
       'rollup.config.js',
       '.tsed/**',
@@ -40,9 +41,13 @@ export default [
     },
     plugins: {
       '@typescript-eslint': tseslint,
-      import: importPlugin,
+      'import-x': importPlugin,
       promise: promisePlugin,
       functional: functionalPlugin,
+    },
+    settings: {
+      // Resolve `.js` specifiers to their `.ts` sources (needed for no-cycle and friends)
+      'import-x/resolver-next': [createTypeScriptImportResolver({ project: './tsconfig.json' })],
     },
     rules: {
       // TypeScript specific rules
@@ -84,7 +89,7 @@ export default [
       'prefer-arrow-callback': 'warn',
 
       // Import rules
-      'import/order': [
+      'import-x/order': [
         'warn',
         {
           groups: [
@@ -103,8 +108,8 @@ export default [
           },
         },
       ],
-      'import/no-duplicates': 'error',
-      'import/no-cycle': 'warn',
+      'import-x/no-duplicates': 'error',
+      'import-x/no-cycle': 'warn',
 
       // Promise rules
       'promise/always-return': 'off', // Effect handles returns differently

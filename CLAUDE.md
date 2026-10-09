@@ -17,7 +17,7 @@ npx vitest run -t "test name"              # single test by name
 npm run typecheck                          # tsc --noEmit
 npm run lint / npm run lint:fix
 npm run format / npm run format:check      # prettier on src/**
-npm run validate                           # typecheck + lint + test
+npm run validate                           # typecheck + lint + knip + test
 npm run build                              # clean, tsc, rollup -> dist/app-fp.js
 npm run tswatch                            # tsc watch for compile errors only
 npm run build && npm run serve:dev         # run locally against /etc/hydra-headless-ts/local.env
@@ -45,16 +45,15 @@ npm run build && npm run serve:dev         # run locally against /etc/hydra-head
 - Configuration: `src/fp/config.ts` defines everything with Effect `Config` (env vars such as `APP_ENV`, `BASE_URL`, `HYDRA_PUBLIC_URL`, `HYDRA_ADMIN_HOST`, `REDIS_HOST`, `GOOGLE_CLIENT_ID`, `DCR_MASTER_CLIENT_ID`, `REDIRECT_URL`, `JWT_*`). `src/config.ts` loads it synchronously into `appConfig` and adds flattened legacy aliases (`hydraInternalAdmin`, `redisHost`, …). To add a new env var, add it to `fp/config.ts` and the `src/env/*.env` files.
 - Views are `@kitajs/html` TSX in `src/views/` (JSX factory `Html.createElement`, configured in tsconfig), not Pug. CSRF uses the `csrf-csrf` double-submit cookie pattern (`doubleCsrfProtection` from `src/setup/index.ts`).
 - Logging goes through Effect's logger (`src/logging-effect.ts`). Use `syncLogger` outside Effect code.
-
-**Legacy/stale code to be aware of:**
-- `src/fp/types.ts` and `src/fp/environment.ts` are left over from an earlier fp-ts/io-ts `ReaderTaskEither` design and nothing imports them. The live code uses Effect (see `src/fp/README.md`).
-- Non-`-fp` files such as `src/routes/index.ts` and `src/logging.ts` are older versions that `app-fp.ts` does not wire up.
+- Unused files, exports and dependencies are checked by knip (`npm run knip`, also in CI). Entry points come from knip's rollup, vitest and package.json-script plugins.
 
 ## Style
 
-- Prettier: no semicolons, single quotes, 100-column width, trailing commas (es5), as defined in `.prettierrc.json`. The `"prettier": "ory-prettier-styles"` key in `package.json` takes precedence, so plain `npx prettier`/`npm run format` switches to double quotes. Format with `npx prettier --config .prettierrc.json --write <files>`.
+- Prettier (`.prettierrc.json`, the only config): no semicolons, single quotes, 100-column width, trailing commas (es5). CI runs `npm run format:check`.
 - ESM with `module: nodenext`, so relative imports must use the `.js` extension, even from `.ts` files.
-- ESLint enforces import order, `consistent-type-imports` and `no-floating-promises`, and includes `eslint-plugin-functional`.
+- ESLint 10 flat config with `eslint-plugin-import-x` (TypeScript resolver), enforcing import order, `consistent-type-imports` and `no-floating-promises`; also `eslint-plugin-functional`.
+- CI (`.github/workflows/ci.yml`) runs typecheck, lint, format check, tests and build on Node 24 with `npm ci`; `package-lock.json` is committed.
+- The rotating file logger writes to `LOG_DIR` (default `/var/log/hydra-headless-ts`); set `LOG_DIR` when that path isn't writable, e.g. running tests outside the server.
 
 ## Deployment notes
 

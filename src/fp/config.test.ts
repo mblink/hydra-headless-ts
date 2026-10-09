@@ -1,16 +1,14 @@
 import { Effect } from 'effect'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import {
-  appConfigEffect,
-  loadAppConfigSync,
-} from './config.js'
+import { appConfigEffect, loadAppConfigSync } from './config.js'
 
 describe('fp/config', () => {
   const originalEnv = { ...process.env }
 
   beforeEach(() => {
-    // Reset environment
+    // Reset environment. Vite injects BASE_URL='/' into process.env, so drop it.
     process.env = { ...originalEnv }
+    delete process.env.BASE_URL
   })
 
   afterEach(() => {
@@ -60,6 +58,10 @@ describe('fp/config', () => {
 
       expect(result.baseUrl).toMatch(/^http:\/\//)
       expect(result.hydra.public.url).toMatch(/^http:\/\//)
+      // SameSite=None requires Secure, which plain http can't provide
+      expect(result.security.secure).toBe(false)
+      expect(result.security.sameSite).toBe('lax')
+      expect(result.security.httpOnly).toBe(true)
     })
   })
 
@@ -100,6 +102,8 @@ describe('fp/config', () => {
   describe('appConfigEffect - production environment', () => {
     it('should load production config with strict security', async () => {
       process.env.APP_ENV = 'production'
+      process.env.BASE_URL = 'https://auth.domain.tld'
+      process.env.HYDRA_PUBLIC_URL = 'https://auth.domain.tld'
       process.env.PUBLIC_DOMAIN = 'auth.domain.tld'
       process.env.PRIVATE_HOST = '10.0.0.100'
       process.env.HYDRA_ADMIN_HOST = '10.0.0.100'
@@ -120,13 +124,18 @@ describe('fp/config', () => {
       expect(result.environment).toBe('production')
       expect(result.baseUrl).toMatch(/^https:\/\//)
       expect(result.security.secure).toBe(true)
+      expect(result.security.sameSite).toBe('none')
       expect(result.security.httpOnly).toBe(true)
-      expect(result.security.sameSite).toBe('lax')
+      expect(result.security.sessionSecret).toBe('prod-session-secret')
+      expect(result.security.cookieSecret).toBe('prod-cookie-secret')
+      expect(result.redis).toEqual({ host: '10.0.0.101', port: 6379 })
       expect(result.port).toBe(3000)
     })
 
     it('should allow optional Google OAuth credentials in production', async () => {
       process.env.APP_ENV = 'production'
+      process.env.BASE_URL = 'https://auth.domain.tld'
+      process.env.HYDRA_PUBLIC_URL = 'https://auth.domain.tld'
       process.env.PUBLIC_DOMAIN = 'auth.domain.tld'
       process.env.PRIVATE_HOST = '10.0.0.100'
       process.env.HYDRA_ADMIN_HOST = '10.0.0.100'
@@ -142,7 +151,7 @@ describe('fp/config', () => {
 
       expect(result.google.clientId).toBeUndefined()
       expect(result.google.clientSecret).toBeUndefined()
-      expect(result.google.redirectUri).toBeDefined()
+      expect(result.google.redirectUri).toBe('https://auth.domain.tld/callback')
     })
   })
 
@@ -162,48 +171,115 @@ describe('fp/config', () => {
 
     it('should handle custom port from environment', async () => {
       process.env.APP_ENV = 'development'
+      process.env.BASE_URL = 'http://dev.domain.tld:4000'
       process.env.PUBLIC_DOMAIN = 'dev.domain.tld'
       process.env.PRIVATE_HOST = 'localhost'
       process.env.HYDRA_PUBLIC_URL = 'http://dev.domain.tld:4444'
       process.env.PORT = '4000'
 
-      const program = Effect.gen(function* () {
-        const config = yield* appConfigEffect
-        return config
-      })
-
-      const result = await Effect.runPromise(program)
+      const result = await Effect.runPromise(appConfigEffect)
 
       expect(result.port).toBe(4000)
-      expect(result.baseUrl).toContain(':4000')
+      // baseUrl comes from BASE_URL verbatim; it is not derived from PORT
+      expect(result.baseUrl).toBe('http://dev.domain.tld:4000')
     })
 
-    it('should parse database DSN correctly', async () => {
+    it('should pass DSN through and read Postgres fields from POSTGRES_* vars', async () => {
       process.env.APP_ENV = 'development'
+      process.env.BASE_URL = 'http://dev.domain.tld:3000'
       process.env.PUBLIC_DOMAIN = 'dev.domain.tld'
       process.env.PRIVATE_HOST = 'localhost'
       process.env.HYDRA_PUBLIC_URL = 'http://dev.domain.tld:4444'
       process.env.DSN = 'postgres://testuser:testpass@dbhost:5555/testdb?sslmode=disable'
+      process.env.POSTGRES_HOST = 'dbhost'
+      process.env.POSTGRES_PORT = '5555'
+      process.env.POSTGRES_USER = 'testuser'
+      process.env.POSTGRES_PASSWORD = 'testpass'
+      process.env.POSTGRES_DB = 'testdb'
 
-      const program = Effect.gen(function* () {
-        const config = yield* appConfigEffect
-        return config
+      const result = await Effect.runPromise(appConfigEffect)
+
+      expect(result.database).toEqual({
+        dsn: 'postgres://testuser:testpass@dbhost:5555/testdb?sslmode=disable',
+        host: 'dbhost',
+        port: 5555,
+        user: 'testuser',
+        password: 'testpass',
+        database: 'testdb',
       })
+    })
 
-      const result = await Effect.runPromise(program)
+    it('should default Postgres fields to the private host when unset', async () => {
+      process.env.APP_ENV = 'staging'
+      process.env.BASE_URL = 'https://auth.staging.domain.tld'
+      process.env.HYDRA_PUBLIC_URL = 'https://auth.staging.domain.tld'
+      process.env.PRIVATE_HOST = '10.1.1.230'
 
-      expect(result.database.dsn).toBe('postgres://testuser:testpass@dbhost:5555/testdb?sslmode=disable')
-      expect(result.database.user).toBe('testuser')
-      expect(result.database.password).toBe('testpass')
-      expect(result.database.host).toBe('dbhost')
-      expect(result.database.port).toBe(5555)
-      expect(result.database.database).toBe('testdb')
+      const result = await Effect.runPromise(appConfigEffect)
+
+      expect(result.database.host).toBe('10.1.1.230')
+      expect(result.database.port).toBe(5432)
+      expect(result.database.dsn).toBe(
+        'postgres://hydra:my-super-secret-password@10.1.1.230:5432/hydra'
+      )
+    })
+
+    it('should reject an invalid APP_ENV', async () => {
+      process.env.APP_ENV = 'qa'
+      process.env.BASE_URL = 'http://localhost:3000'
+
+      const result = await Effect.runPromise(Effect.either(appConfigEffect))
+
+      expect(result._tag).toBe('Left')
+    })
+
+    it('should reject an invalid JWT_PROVIDER', async () => {
+      process.env.APP_ENV = 'local'
+      process.env.BASE_URL = 'http://localhost:3000'
+      process.env.JWT_PROVIDER = 'auth0'
+
+      const result = await Effect.runPromise(Effect.either(appConfigEffect))
+
+      expect(result._tag).toBe('Left')
+    })
+
+    it('should require HYDRA_PUBLIC_URL outside local', async () => {
+      process.env.APP_ENV = 'staging'
+      process.env.BASE_URL = 'https://auth.staging.domain.tld'
+      delete process.env.HYDRA_PUBLIC_URL
+
+      const result = await Effect.runPromise(Effect.either(appConfigEffect))
+
+      expect(result._tag).toBe('Left')
+    })
+  })
+
+  describe('appConfigEffect - local environment', () => {
+    it('should derive Hydra and Redis endpoints from LOCAL_DOMAIN', async () => {
+      process.env.APP_ENV = 'local'
+      process.env.BASE_URL = 'http://localhost:3000'
+      process.env.LOCAL_DOMAIN = 'dev.local'
+
+      const result = await Effect.runPromise(appConfigEffect)
+
+      expect(result.domain).toEqual({ public: 'dev.local', private: 'dev.local' })
+      expect(result.hydra.public).toEqual({ url: 'http://dev.local:4444', port: 4444 })
+      expect(result.hydra.admin).toEqual({ host: 'dev.local', port: 4445 })
+      expect(result.redis).toEqual({ host: 'dev.local', port: 6379 })
+      expect(result.google.clientId).toBeUndefined()
+      expect(result.security.csrfTokenName).toBe('dev_xsrf_token')
+      expect(result.security.sameSite).toBe('lax')
+      expect(result.security.jwtProvider).toBe('hydra')
+      expect(result.security.jwtIssuer).toBe('http://localhost:3000')
+      expect(result.middlewareRedirectUri).toBe('http://localhost:3000/callback')
+      expect(result.dcrOriginRedirectUri).toBe('https://claude.ai/api/mcp/auth_callback')
     })
   })
 
   describe('loadAppConfigSync', () => {
     it('should synchronously load config', () => {
       process.env.APP_ENV = 'development'
+      process.env.BASE_URL = 'http://dev.domain.tld:3000'
       process.env.PUBLIC_DOMAIN = 'dev.domain.tld'
       process.env.PRIVATE_HOST = 'localhost'
       process.env.HYDRA_PUBLIC_URL = 'http://dev.domain.tld:4444'
@@ -224,6 +300,8 @@ describe('fp/config', () => {
   describe('DomainConfig', () => {
     it('should support separate public and private domains', async () => {
       process.env.APP_ENV = 'staging'
+      process.env.BASE_URL = 'https://auth.staging.domain.tld'
+      process.env.HYDRA_PUBLIC_URL = 'https://auth.staging.domain.tld'
       process.env.PUBLIC_DOMAIN = 'auth.staging.domain.tld'
       process.env.PRIVATE_HOST = '10.1.1.230'
       process.env.HYDRA_ADMIN_HOST = '10.1.1.230'
@@ -246,6 +324,7 @@ describe('fp/config', () => {
   describe('Environment defaults', () => {
     it('should default to local when APP_ENV is not set', async () => {
       delete process.env.APP_ENV
+      process.env.BASE_URL = 'http://localhost:3000'
       process.env.PUBLIC_DOMAIN = 'dev.domain.tld'
       process.env.PRIVATE_HOST = 'localhost'
       process.env.HYDRA_PUBLIC_URL = 'http://dev.domain.tld:4444'

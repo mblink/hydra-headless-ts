@@ -25,18 +25,9 @@ export const PKCEStateSchema = Schema.Struct({
 export type PKCEState = typeof PKCEStateSchema.Type
 
 /**
- * Hydra Client
- */
-
-export const AllowedFlowScopes = Schema.Literal("email", "offline_access", "profile", "openid")
-export const AllowedResponseTypes = Schema.Literal("code")
-
-
-/**
  * OAuth2 Grant Types
  */
 export const GrantTypeSchema = Schema.Literal('authorization_code', 'refresh_token')
-export type GrantType = typeof GrantTypeSchema.Type
 
 /**
  * Authorization Code Grant Request
@@ -64,23 +55,7 @@ export type RefreshTokenGrant = typeof RefreshTokenGrantSchema.Type
 /**
  * Token Request (discriminated union)
  */
-export const TokenRequestSchema = Schema.Union(
-  AuthCodeGrantSchema,
-  RefreshTokenGrantSchema
-)
-export type TokenRequest = typeof TokenRequestSchema.Type
-
-export const AuthFlowResponseTypes = Schema.Literal("code")
-
-export const AuthFlowCreateClientSchema = Schema.Struct({
-  client_name: Schema.String,
-  scope: Schema.Array(Schema.String),
-  grant_types: Schema.Array(Schema.String),
-  response_types: Schema.Array(AuthFlowResponseTypes),
-  redirect_urls: Schema.Array(Schema.String),
-  token_endpoint_auth_method: Schema.Literal("none")
-})
-export type AuthFlowCreateClientRequest = typeof AuthFlowCreateClientSchema.Type
+export const TokenRequestSchema = Schema.Union(AuthCodeGrantSchema, RefreshTokenGrantSchema)
 
 /**
  * Google Token Response
@@ -102,7 +77,7 @@ export const GoogleUserInfoSchema = Schema.Struct({
   given_name: Schema.optional(Schema.String),
   family_name: Schema.optional(Schema.String),
   picture: Schema.optional(Schema.String),
-  locale: Schema.optional(Schema.String)
+  locale: Schema.optional(Schema.String),
 })
 
 export type GoogleUserInfoResponse = typeof GoogleUserInfoSchema.Type
@@ -114,7 +89,6 @@ export const GoogleErrorResponseSchema = Schema.Struct({
   error: Schema.String,
   error_description: Schema.optional(Schema.String),
 })
-export type GoogleErrorResponse = typeof GoogleErrorResponseSchema.Type
 
 /**
  * Google Token Data stored in Redis (indexed by JTI)
@@ -149,7 +123,7 @@ export type JWTRefreshData = typeof JWTRefreshDataSchema.Type
  * Legacy Refresh Token Data stored in Redis (for backward compatibility)
  * @deprecated Use GoogleTokenDataSchema and JWTRefreshDataSchema instead
  */
-export const RefreshTokenDataSchema = Schema.Struct({
+const RefreshTokenDataSchema = Schema.Struct({
   client_id: Schema.String,
   refresh_token: Schema.String,
   access_token: Schema.String,
@@ -169,13 +143,16 @@ export const AuthCodeDataSchema = Schema.Struct({
     tokens: GoogleTokenResponseSchema,
   }),
   subject: Schema.optional(Schema.String),
+  // Absolute expiry of the Google access token (ms since epoch). Optional so auth codes
+  // issued before this field existed can still be exchanged.
+  google_expires_at: Schema.optional(Schema.Number),
 })
 export type AuthCodeData = typeof AuthCodeDataSchema.Type
 
 /**
  * OAuth2 Token Response (what we return to clients)
  */
-export const OAuth2TokenResponseSchema = Schema.Struct({
+const OAuth2TokenResponseSchema = Schema.Struct({
   access_token: Schema.String,
   token_type: Schema.Literal('Bearer'),
   expires_in: Schema.Number,
@@ -187,7 +164,7 @@ export type OAuth2TokenResponse = typeof OAuth2TokenResponseSchema.Type
 /**
  * OAuth2 Error Response
  */
-export const OAuth2ErrorResponseSchema = Schema.Struct({
+const OAuth2ErrorResponseSchema = Schema.Struct({
   error: Schema.String,
   error_description: Schema.optional(Schema.String),
 })

@@ -7,5 +7,7 @@ declare module "express-session" {
     codeChallenge?: string | undefined
     codeChallengeMethod: string | undefined
     pkceKey: string | undefined
+    /** Set when a CSRF token is issued so the session (and its id) is persisted */
+    csrfIssuedAt?: number
   }
 }

@@ -4,9 +4,13 @@
 import { Effect, pipe } from 'effect'
 import express from 'express'
 import { type AppError } from '../fp/errors.js'
-import { processCallback, type GoogleOAuthClient, type CallbackConfig } from '../fp/services/callback.js'
+import {
+  processCallback,
+  type GoogleOAuthClient,
+  type CallbackConfig,
+} from '../fp/services/callback.js'
 import type { RedisService } from '../fp/services/redis.js'
-import type { Layer } from 'effect';
+import type { Layer } from 'effect'
 
 const router = express.Router()
 
@@ -160,5 +164,3 @@ export const createCallbackRouter = (
   router.get('/', createCallbackHandler(serviceLayer, googleClient, config))
   return router
 }
-
-export default router

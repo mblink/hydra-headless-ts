@@ -30,10 +30,7 @@ const mapErrorToHttp = (error: AppError): { status: number; message: string } =>
 /**
  * Consent handler
  */
-const createConsentHandler = (
-  serviceLayer: Layer.Layer<HydraService>,
-  config: ConsentConfig
-) => {
+const createConsentHandler = (serviceLayer: Layer.Layer<HydraService>, config: ConsentConfig) => {
   return async (req: express.Request, res: express.Response) => {
     const challenge = String(req.query.consent_challenge)
     const requestedScope = req.query.requested_scope as string | undefined
@@ -135,5 +132,3 @@ export const createConsentRouter = (
   router.get('/', createConsentHandler(serviceLayer, config))
   return router
 }
-
-export default router

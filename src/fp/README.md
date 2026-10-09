@@ -18,8 +18,6 @@ fp/
 │   ├── jwt.ts            # JWTService (provider: hydra | google)
 │   ├── token.ts          # authorization_code / refresh_token grants
 │   └── login.ts, consent.ts, callback.ts, logout.ts   # per-route flows
-├── types.ts, environment.ts   # Legacy fp-ts types; not used by the app
-└── example-integration.ts     # Example only
 ```
 
 ## Services

@@ -6,5 +6,5 @@ lib/
 .env*
 dist/
 google.json
-package-lock.json
 .DS_Store
+.rollup.cache/

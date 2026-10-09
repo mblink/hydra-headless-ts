@@ -9,12 +9,9 @@ import {
   PKCEStateSchema,
   AuthCodeDataSchema,
   GoogleTokenDataSchema,
-  JWTRefreshDataSchema
+  JWTRefreshDataSchema,
 } from '../domain.js'
-import {
-  type AppError,
-  MissingParameter,
-} from '../errors.js'
+import { type AppError, InvalidGrant, MissingParameter } from '../errors.js'
 import { validatePKCE, parseScopeString, validateScopes } from '../validation.js'
 import { GoogleOAuthService } from './google.js'
 import { JWTService } from './jwt.js'
@@ -23,7 +20,8 @@ import type {
   AuthCodeGrant,
   RefreshTokenGrant,
   OAuth2TokenResponse,
-  GoogleTokenData} from '../domain.js';
+  GoogleTokenData,
+} from '../domain.js'
 
 /**
  * Process authorization_code grant type (Effect version)
@@ -56,11 +54,23 @@ export const processAuthCodeGrant = (
       pkceState.code_challenge_method
     )
 
+    // Remaining Google token lifetime, measured now rather than at callback time
+    const tokenObj = authData.google_tokens.tokens
+    const now = Date.now()
+    const expiresAt = authData.google_expires_at ?? now + tokenObj.expires_in * 1000
+    const expiresIn = Math.floor((expiresAt - now) / 1000)
+    if (expiresIn <= 0) {
+      return yield* Effect.fail(
+        new InvalidGrant({
+          reason: 'Google access token expired before the authorization code was exchanged',
+        })
+      )
+    }
+
     // Step 4: Generate JTI for this access token
     const jti = yield* jwt.generateJti()
 
     // Step 5: Store Google's tokens in Redis (indexed by JTI)
-    const tokenObj = authData.google_tokens.tokens
     const googleTokenData: GoogleTokenData = {
       google_access_token: tokenObj.access_token,
       google_refresh_token: tokenObj.refresh_token ?? '',
@@ -68,8 +78,8 @@ export const processAuthCodeGrant = (
       scope: tokenObj.scope,
       subject: authData.subject ?? 'user',
       client_id: pkceState.client_id,
-      expires_at: Date.now() + (tokenObj.expires_in * 1000),
-      updated_at: Date.now(),
+      expires_at: expiresAt,
+      updated_at: now,
     }
 
     yield* redisOps.setGoogleToken(jti, googleTokenData)
@@ -100,7 +110,7 @@ export const processAuthCodeGrant = (
         client_id: pkceState.client_id,
         jti,
       },
-      tokenObj.expires_in,
+      expiresIn,
       googleTokenData.google_id_token // Pass Google ID token for Google mode
     )
 
@@ -108,7 +118,7 @@ export const processAuthCodeGrant = (
     const response: OAuth2TokenResponse = {
       access_token: accessToken, // JWT instead of Google's opaque token
       token_type: 'Bearer',
-      expires_in: tokenObj.expires_in,
+      expires_in: expiresIn,
       refresh_token: ourRefreshToken, // Our own refresh token
       scope: tokenObj.scope,
     }
@@ -126,11 +136,7 @@ export const processAuthCodeGrant = (
  */
 export const processRefreshTokenGrant = (
   grant: RefreshTokenGrant
-): Effect.Effect<
-  OAuth2TokenResponse,
-  AppError,
-  RedisService | GoogleOAuthService | JWTService
-> =>
+): Effect.Effect<OAuth2TokenResponse, AppError, RedisService | GoogleOAuthService | JWTService> =>
   Effect.gen(function* () {
     // Access services
     const redis = yield* RedisService
@@ -147,10 +153,7 @@ export const processRefreshTokenGrant = (
     const refreshToken = grant.refresh_token
 
     // Step 2: Fetch JWT refresh data (maps our refresh token to JTI)
-    const jwtRefreshData = yield* redisOps.getJWTRefresh(
-      refreshToken,
-      JWTRefreshDataSchema
-    )
+    const jwtRefreshData = yield* redisOps.getJWTRefresh(refreshToken, JWTRefreshDataSchema)
 
     yield* Effect.logTrace('Fetched JWT refresh data').pipe(
       Effect.annotateLogs({ jti: jwtRefreshData.jti })
@@ -172,7 +175,7 @@ export const processRefreshTokenGrant = (
 
     // Step 5: Check if Google token needs refresh
     const now = Date.now()
-    const needsRefresh = googleTokenData.expires_at < (now + 300000) // Refresh if < 5min left
+    const needsRefresh = googleTokenData.expires_at < now + 300000 // Refresh if < 5min left
 
     let newGoogleTokenData = googleTokenData
     let expiresIn = Math.floor((googleTokenData.expires_at - now) / 1000)
@@ -199,7 +202,7 @@ export const processRefreshTokenGrant = (
         google_access_token: googleResponse.access_token,
         google_refresh_token: googleResponse.refresh_token ?? googleTokenData.google_refresh_token,
         google_id_token: googleResponse.id_token ?? googleTokenData.google_id_token,
-        expires_at: now + (googleResponse.expires_in * 1000),
+        expires_at: now + googleResponse.expires_in * 1000,
         updated_at: now,
       }
 

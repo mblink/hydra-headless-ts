@@ -6,7 +6,7 @@ import express from 'express'
 import { type AppError } from '../fp/errors.js'
 import { processLogin } from '../fp/services/login.js'
 import type { HydraService } from '../fp/services/hydra.js'
-import type { Layer } from 'effect';
+import type { Layer } from 'effect'
 
 const router = express.Router()
 const SUBJECT_PLACEHOLDER = 'claude@claude.ai'
@@ -130,5 +130,3 @@ export const createLoginRouter = (serviceLayer: Layer.Layer<HydraService>) => {
 
   return router
 }
-
-export default router

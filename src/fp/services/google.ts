@@ -11,18 +11,12 @@
 import axios from 'axios'
 import { Effect, pipe, Context, Layer } from 'effect'
 import { OAuth2Client } from 'google-auth-library'
-import {
-  GoogleTokenResponseSchema,
-  GoogleUserInfoSchema
-} from '../domain.js'
+import { GoogleTokenResponseSchema, GoogleUserInfoSchema } from '../domain.js'
 import { NetworkError, HttpStatusError, ParseError, GoogleAuthError } from '../errors.js'
 import { validateSchema } from '../validation.js'
-import type {
-  GoogleTokenResponse,
-  GoogleUserInfoResponse,
-  RefreshTokenData} from '../domain.js';
-import type { HttpError} from '../errors.js';
-import type { AxiosError } from 'axios';
+import type { GoogleTokenResponse, GoogleUserInfoResponse, RefreshTokenData } from '../domain.js'
+import type { HttpError } from '../errors.js'
+import type { AxiosError } from 'axios'
 
 /**
  * Google OAuth service interface
@@ -37,11 +31,6 @@ export interface GoogleOAuthService {
     state: string,
     redirectUrl: string
   ) => Effect.Effect<string, HttpError>
-
-  readonly getTokensFromCode: (
-    code: string,
-    redirectUrl: string
-  ) => Effect.Effect<GoogleTokenResponse, HttpError | GoogleAuthError>
 
   readonly refreshAccessToken: (
     refreshToken: string
@@ -72,18 +61,19 @@ export interface GoogleOAuthConfig {
 /**
  * Create Google OAuth service implementation
  */
-export const makeGoogleOAuthService = (
-  config: GoogleOAuthConfig
-): GoogleOAuthService => {
+export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthService => {
   const TOKEN_ENDPOINT = config.tokenEndpoint ?? 'https://oauth2.googleapis.com/token'
-  const USER_INFO_ENDPOINT = config.userInfoEndpoint ?? 'https://www.googleapis.com/oauth2/v2/userinfo'
+  const USER_INFO_ENDPOINT =
+    config.userInfoEndpoint ?? 'https://www.googleapis.com/oauth2/v2/userinfo'
 
   // Create OAuth2Client if redirectUri is provided (for auth flow operations)
-  const oauth2Client = config.redirectUri ? new OAuth2Client({
-    clientId: config.clientId,
-    clientSecret: config.clientSecret,
-    redirectUri: config.redirectUri,
-  }) : null
+  const oauth2Client = config.redirectUri
+    ? new OAuth2Client({
+        clientId: config.clientId,
+        clientSecret: config.clientSecret,
+        redirectUri: config.redirectUri,
+      })
+    : null
 
   /**
    * Helper to handle axios errors
@@ -96,7 +86,7 @@ export const makeGoogleOAuthService = (
       if (axiosError.response?.data) {
         try {
           const errorData = axiosError.response.data as any
-          if (errorData.error) {
+          if (typeof errorData.error === 'string') {
             return new GoogleAuthError({
               error: errorData.error,
               errorDescription: errorData.error_description,
@@ -128,7 +118,9 @@ export const makeGoogleOAuthService = (
         Effect.logInfo('=== GOOGLE refreshToken CALLED ===').pipe(
           Effect.annotateLogs({
             has_refresh_token: !!tokenData.refresh_token,
-            refresh_token_preview: tokenData.refresh_token ? `${tokenData.refresh_token.substring(0, 20)}...` : 'none',
+            refresh_token_preview: tokenData.refresh_token
+              ? `${tokenData.refresh_token.substring(0, 20)}...`
+              : 'none',
             client_id: tokenData.client_id,
             scope: tokenData.scope,
             endpoint: TOKEN_ENDPOINT,
@@ -188,13 +180,12 @@ export const makeGoogleOAuthService = (
             })
           )
         ),
-        Effect.mapError(
-          (error): HttpError | GoogleAuthError =>
-            error._tag === 'SchemaValidationError'
-              ? new ParseError({
-                  message: `Failed to parse Google token response: ${error.errors.join(', ')}`,
-                })
-              : error
+        Effect.mapError((error): HttpError | GoogleAuthError =>
+          error._tag === 'SchemaValidationError'
+            ? new ParseError({
+                message: `Failed to parse Google token response: ${error.errors.join(', ')}`,
+              })
+            : error
         )
       ),
 
@@ -221,75 +212,6 @@ export const makeGoogleOAuthService = (
           }),
       }),
 
-    getTokensFromCode: (code: string, redirectUrl: string) =>
-      pipe(
-        Effect.logInfo('=== GOOGLE getTokensFromCode CALLED ===').pipe(
-          Effect.annotateLogs({
-            has_code: !!code,
-            code_preview: code ? `${code.substring(0, 20)}...` : 'none',
-            redirect_url: redirectUrl,
-            timestamp: new Date().toISOString(),
-          })
-        ),
-        Effect.andThen(() =>
-          Effect.tryPromise({
-            try: async () => {
-              if (!oauth2Client) {
-                throw new Error('OAuth2Client not initialized - redirectUri required in config')
-              }
-              const response = await oauth2Client.getToken({
-                code,
-                redirect_uri: redirectUrl,
-              })
-              return response.tokens
-            },
-            catch: (error) => handleAxiosError(error, 'getTokensFromCode'),
-          })
-        ),
-        Effect.tap((data) =>
-          Effect.logInfo('=== GOOGLE getTokensFromCode RESPONSE ===').pipe(
-            Effect.annotateLogs({
-              has_access_token: !!(data as any).access_token,
-              has_refresh_token: !!(data as any).refresh_token,
-              has_id_token: !!(data as any).id_token,
-              expires_in: (data as any).expires_in,
-              scope: (data as any).scope,
-              timestamp: new Date().toISOString(),
-            })
-          )
-        ),
-        Effect.flatMap((data) => validateSchema(GoogleTokenResponseSchema, data)),
-        Effect.tap((tokenResponse) =>
-          Effect.logInfo('=== GOOGLE getTokensFromCode SUCCESS ===').pipe(
-            Effect.annotateLogs({
-              expires_in: tokenResponse.expires_in,
-              scope: tokenResponse.scope,
-              has_refresh_token: !!tokenResponse.refresh_token,
-              has_id_token: !!tokenResponse.id_token,
-              timestamp: new Date().toISOString(),
-            })
-          )
-        ),
-        Effect.tapError((error) =>
-          Effect.logError('=== GOOGLE getTokensFromCode ERROR ===').pipe(
-            Effect.annotateLogs({
-              error_tag: error._tag,
-              error_details: error,
-              code_preview: code ? `${code.substring(0, 20)}...` : 'none',
-              timestamp: new Date().toISOString(),
-            })
-          )
-        ),
-        Effect.mapError(
-          (error): HttpError | GoogleAuthError =>
-            error._tag === 'SchemaValidationError'
-              ? new ParseError({
-                  message: `Failed to parse Google token response: ${error.errors.join(', ')}`,
-                })
-              : error
-        )
-      ),
-
     refreshAccessToken: (refreshToken: string) =>
       pipe(
         Effect.tryPromise({
@@ -313,13 +235,12 @@ export const makeGoogleOAuthService = (
           catch: (error) => handleAxiosError(error, 'refreshAccessToken'),
         }),
         Effect.flatMap((data) => validateSchema(GoogleTokenResponseSchema, data)),
-        Effect.mapError(
-          (error): HttpError | GoogleAuthError =>
-            error._tag === 'SchemaValidationError'
-              ? new ParseError({
-                  message: `Failed to parse Google token response: ${error.errors.join(', ')}`,
-                })
-              : error
+        Effect.mapError((error): HttpError | GoogleAuthError =>
+          error._tag === 'SchemaValidationError'
+            ? new ParseError({
+                message: `Failed to parse Google token response: ${error.errors.join(', ')}`,
+              })
+            : error
         )
       ),
 
@@ -378,13 +299,12 @@ export const makeGoogleOAuthService = (
             })
           )
         ),
-        Effect.mapError(
-          (error): HttpError | GoogleAuthError =>
-            error._tag === 'SchemaValidationError'
-              ? new ParseError({
-                  message: `Failed to parse Google user info response: ${error.errors.join(', ')}`,
-                })
-              : error
+        Effect.mapError((error): HttpError | GoogleAuthError =>
+          error._tag === 'SchemaValidationError'
+            ? new ParseError({
+                message: `Failed to parse Google user info response: ${error.errors.join(', ')}`,
+              })
+            : error
         )
       ),
   }
