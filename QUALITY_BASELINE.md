@@ -140,7 +140,7 @@ This single command ensures:
 
 ## CI/CD Integration
 
-`RC` is tested and built by Woodpecker (`.woodpecker.yml`), which runs `npm run ci` and then builds the Docker image with `npm run build`. Lint warnings, formatting, type errors and Rollup warnings all fail both; see [What fails CI and the build](LINTING.md#what-fails-ci-and-the-build).
+`RC` is tested and built by Woodpecker (`.woodpecker.yml`), which runs `npm run ci` and then builds the Docker image with `npm run build`. Lint warnings, formatting, unused code (knip), type errors and Rollup warnings all fail both; see [What fails CI and the build](LINTING.md#what-fails-ci-and-the-build).
 
 ## Pre-Commit Workflow
 

@@ -122,5 +122,3 @@ export const createLogoutRouter = (serviceLayer: Layer.Layer<HydraService>, conf
   router.post('/', doubleCsrfProtection, createLogoutPostHandler(serviceLayer));
   return router;
 };
-
-export default router;

@@ -2,15 +2,17 @@
  * Unified Effect-based logging with file output
  * Replaces jsonLogger with Effect's Logger while maintaining file output
  */
-import { Logger } from 'effect';
+import { Effect, Logger } from 'effect';
 import { createStream } from 'rotating-file-stream';
+import { logDirConfig } from './fp/config.js';
+
 /**
  * Rotating file stream for persistent logs
  * Rotates daily, compresses old logs
  */
-export const accessLogStream = createStream('hydra-headless.log', {
+const accessLogStream = createStream('hydra-headless.log', {
   interval: '1d',
-  path: '/var/log/hydra-headless-ts',
+  path: Effect.runSync(logDirConfig),
   compress: 'gzip',
 });
 
@@ -18,7 +20,7 @@ export const accessLogStream = createStream('hydra-headless.log', {
  * Custom Effect logger that writes to both stdout and rotating file
  * Maintains same JSON format as previous jsonLogger for compatibility
  */
-export const customLogger = Logger.make<unknown, void>(({ logLevel, message, annotations, spans, fiberId, date }) => {
+const customLogger = Logger.make<unknown, void>(({ logLevel, message, annotations, spans, fiberId, date }) => {
   // Convert annotations HashMap to plain object
   const annotationsObj: Record<string, unknown> = Object.fromEntries(annotations);
 
@@ -54,7 +56,7 @@ export const createLoggerLayer = () => Logger.replace(Logger.defaultLogger, cust
  * Synchronous logging helper for non-Effect code
  * Writes directly to stdout and file without running Effect
  */
-export const logSync = (
+const logSync = (
   level: 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL',
   message: string,
   annotations?: Record<string, unknown>,

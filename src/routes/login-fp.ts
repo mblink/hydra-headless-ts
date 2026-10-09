@@ -130,5 +130,3 @@ export const createLoginRouter = (serviceLayer: Layer.Layer<HydraService>) => {
 
   return router;
 };
-
-export default router;

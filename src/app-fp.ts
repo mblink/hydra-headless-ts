@@ -8,7 +8,6 @@ import cookieParser from 'cookie-parser';
 import express from 'express';
 import session from 'express-session';
 import { OAuth2Client as GoogleOAuth2Client } from 'google-auth-library';
-import { Redis } from 'ioredis';
 import favicon from 'serve-favicon';
 import { v4 } from 'uuid';
 import { PgStore, appConfig } from './config.js';
@@ -28,17 +27,12 @@ import { createTokenRouter } from './routes/passthrough-auth-fp.js';
 import { createValidateTokenRouter } from './routes/validate-token-fp.js';
 import { OAuth2ApiLayer } from './setup/hydra.js';
 import proxyMiddleware from './setup/proxy.js';
+import { redisClient } from './setup/redis.js';
 import { ErrorPage } from './views/index.js';
 import type { NextFunction, Response, Request } from 'express';
 
 const app = express();
 const __dirname = import.meta.dirname;
-
-// Create Redis client
-const redisClient = new Redis({
-  host: appConfig.redisHost,
-  port: appConfig.redisPort,
-});
 
 // Create Google OAuth2 client
 const googleClient = new GoogleOAuth2Client({

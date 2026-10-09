@@ -28,9 +28,7 @@ export interface OAuth2ApiService {
     body?: AcceptOAuth2ConsentRequest
   ) => Effect.Effect<OAuth2RedirectTo, HttpError>
 
-  readonly getLoginRequest: (
-    loginChallenge: string
-  ) => Effect.Effect<OAuth2LoginRequest, HttpError>
+  readonly getLoginRequest: (loginChallenge: string) => Effect.Effect<OAuth2LoginRequest, HttpError>
 
   // ... 30+ more methods
 }
@@ -49,8 +47,8 @@ These are defined in [src/fp/errors.ts](../fp/errors.ts).
 
 ```typescript
 export interface OAuth2ApiConfig {
-  basePath: string                    // e.g., "http://localhost:4445"
-  headers?: Record<string, string>    // Optional default headers
+  basePath: string // e.g., "http://localhost:4445"
+  headers?: Record<string, string> // Optional default headers
   accessToken?: string | ((name: string, scopes?: string[]) => string | Promise<string>)
 }
 ```
@@ -60,18 +58,20 @@ export interface OAuth2ApiConfig {
 ### Basic Setup
 
 ```typescript
-import { makeOAuth2ApiService, OAuth2ApiServiceLive } from './api/oauth2.js'
+import { Effect } from 'effect'
+import { OAuth2ApiService, OAuth2ApiServiceLive } from './api/oauth2.js'
 
-// Create service instance
-const oauth2Api = makeOAuth2ApiService({
-  basePath: 'http://localhost:4445',
-  headers: { 'X-Forwarded-Proto': 'https' }
-})
-
-// Or create a Layer for DI
+// Create a Layer for DI
 const OAuth2Layer = OAuth2ApiServiceLive({
   basePath: 'http://localhost:4445',
+  headers: { 'X-Forwarded-Proto': 'https' },
 })
+
+// The examples below use `oauth2Api`, obtained from the context inside an Effect
+const program = Effect.gen(function* () {
+  const oauth2Api = yield* OAuth2ApiService
+  // ...
+}).pipe(Effect.provide(OAuth2Layer))
 ```
 
 ### Simple Operation
@@ -81,8 +81,8 @@ import { Effect, pipe } from 'effect'
 
 const program = pipe(
   oauth2Api.getLoginRequest('challenge_123'),
-  Effect.map(loginRequest => loginRequest.subject),
-  Effect.catchAll(error => Effect.succeed('anonymous'))
+  Effect.map((loginRequest) => loginRequest.subject),
+  Effect.catchAll((error) => Effect.succeed('anonymous'))
 )
 
 // Run the program
@@ -94,13 +94,13 @@ const result = await Effect.runPromise(program)
 ```typescript
 const loginFlow = pipe(
   oauth2Api.getLoginRequest(loginChallenge),
-  Effect.flatMap(loginReq =>
+  Effect.flatMap((loginReq) =>
     oauth2Api.acceptLoginRequest(loginChallenge, {
       subject: loginReq.subject || 'user-123',
-      remember: true
+      remember: true,
     })
   ),
-  Effect.map(redirect => redirect.redirect_to)
+  Effect.map((redirect) => redirect.redirect_to)
 )
 ```
 
@@ -108,11 +108,14 @@ const loginFlow = pipe(
 
 ```typescript
 const [client1, client2, client3] = await Effect.runPromise(
-  Effect.all([
-    oauth2Api.getClient('client-1'),
-    oauth2Api.getClient('client-2'),
-    oauth2Api.getClient('client-3'),
-  ], { concurrency: 'unbounded' })
+  Effect.all(
+    [
+      oauth2Api.getClient('client-1'),
+      oauth2Api.getClient('client-2'),
+      oauth2Api.getClient('client-3'),
+    ],
+    { concurrency: 'unbounded' }
+  )
 )
 ```
 
@@ -141,7 +144,7 @@ const program = pipe(
   oauth2Api.createClient(newClient),
   Effect.retry({
     times: 3,
-    schedule: Effect.scheduleExponential('100 millis', 2.0)
+    schedule: Effect.scheduleExponential('100 millis', 2.0),
   }),
   Effect.timeout('10 seconds')
 )
@@ -155,13 +158,11 @@ import { OAuth2ApiLayer } from './setup/hydra.js'
 
 const program = pipe(
   OAuth2ApiService,
-  Effect.flatMap(api => api.getLoginRequest(challenge))
+  Effect.flatMap((api) => api.getLoginRequest(challenge))
 )
 
 // Provide dependencies
-const result = await Effect.runPromise(
-  Effect.provide(program, OAuth2ApiLayer)
-)
+const result = await Effect.runPromise(Effect.provide(program, OAuth2ApiLayer))
 ```
 
 ## API Methods
@@ -235,11 +236,11 @@ const client = new OAuth2Api(config)
 
 try {
   const loginRequest = await client.getOAuth2LoginRequest({
-    loginChallenge: challenge
+    loginChallenge: challenge,
   })
   const redirect = await client.acceptOAuth2LoginRequest({
     loginChallenge: challenge,
-    acceptOAuth2LoginRequest: { subject: 'user-123' }
+    acceptOAuth2LoginRequest: { subject: 'user-123' },
   })
   return redirect.redirect_to
 } catch (error) {
@@ -256,11 +257,9 @@ import { oauth2Api } from './setup/hydra.js'
 
 const program = pipe(
   oauth2Api.getLoginRequest(challenge),
-  Effect.flatMap(() =>
-    oauth2Api.acceptLoginRequest(challenge, { subject: 'user-123' })
-  ),
-  Effect.map(redirect => redirect.redirect_to),
-  Effect.catchAll(error => {
+  Effect.flatMap(() => oauth2Api.acceptLoginRequest(challenge, { subject: 'user-123' })),
+  Effect.map((redirect) => redirect.redirect_to),
+  Effect.catchAll((error) => {
     console.error('Error:', error)
     return Effect.fail(error)
   })
@@ -268,21 +267,6 @@ const program = pipe(
 
 const result = await Effect.runPromise(program)
 ```
-
-## Examples
-
-See [oauth2-example.ts](./oauth2-example.ts) for comprehensive usage examples including:
-
-1. Basic requests
-2. Error recovery
-3. Sequential operations
-4. Parallel operations
-5. Retry logic
-6. Pagination
-7. Conditional logic
-8. Error transformation
-9. Dependency injection
-10. And more...
 
 ## Type Safety
 
@@ -305,18 +289,19 @@ The Effect-based approach makes testing easier:
 ```typescript
 // Create a mock service
 const mockOAuth2Api: OAuth2ApiService = {
-  getLoginRequest: (challenge) => Effect.succeed({
-    challenge,
-    subject: 'test-user',
-    // ... other fields
-  }),
+  getLoginRequest: (challenge) =>
+    Effect.succeed({
+      challenge,
+      subject: 'test-user',
+      // ... other fields
+    }),
   // ... other methods
 }
 
 // Test with mock
 const program = pipe(
   Effect.succeed(mockOAuth2Api),
-  Effect.flatMap(api => api.getLoginRequest('test-challenge'))
+  Effect.flatMap((api) => api.getLoginRequest('test-challenge'))
 )
 
 const result = await Effect.runPromise(program)
@@ -334,18 +319,21 @@ const result = await Effect.runPromise(program)
 This implementation uses Effect but doesn't use the full Effect service pattern from [src/fp/services/hydra.ts](../fp/services/hydra.ts). The key difference:
 
 ### This Implementation (oauth2.ts)
+
 - Complete API coverage (30+ methods)
 - Direct fetch calls
 - Minimal abstractions
 - Easier to understand and modify
 
 ### Effect Service Pattern (fp/services/hydra.ts)
+
 - Subset of operations (only login/consent/logout)
 - Full dependency injection with Context/Layer
 - More functional composition
 - Better for complex FP applications
 
 Choose based on your needs:
+
 - Use `oauth2.ts` for comprehensive API access with Effect error handling
 - Use `fp/services/hydra.ts` for deep FP integration with full Effect patterns
 

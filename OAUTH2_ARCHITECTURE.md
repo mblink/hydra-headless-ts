@@ -107,8 +107,6 @@ User → Client App → Hydra /oauth2/auth
 
 **Key Files:**
 
-- [src/views/login.tsx](src/views/login.tsx) - Login page template
-- [src/views/consent.tsx](src/views/consent.tsx) - Consent page template
 - [src/routes/login-fp.ts](src/routes/login-fp.ts) - Login handler
 - [src/routes/consent-fp.ts](src/routes/consent-fp.ts) - Consent handler
 - [src/routes/callback-fp.ts](src/routes/callback-fp.ts) - Google OAuth callback
@@ -293,14 +291,15 @@ All HTML templates are type-safe TypeScript functions:
 **Example:**
 
 ```typescript
-// src/views/login.tsx
-export interface LoginProps {
-  challenge: string
+// src/views/logout.tsx
+export interface LogoutProps {
+  action: string
+  envXsrfToken: string
   csrfToken: string
-  // ... TypeScript enforces all props
+  challenge: string
 }
 
-export function Login(props: LoginProps): string {
+export function Logout({ action, envXsrfToken, csrfToken, challenge }: LogoutProps): string {
   return Layout({ /* ... */ })
 }
 ```
@@ -397,7 +396,7 @@ Environment-based configuration using Effect Config:
 ```typescript
 // src/fp/config.ts
 export const appConfigEffect = Config.all({
-  environment: Config.string('APP_ENV').pipe(Config.withDefault('development')),
+  environment: Config.string('APP_ENV').pipe(Config.withDefault('local')),
   baseUrl: Config.string('BASE_URL'),
   publicDomain: Config.string('PUBLIC_DOMAIN'),
   hydraPublicUrl: Config.string('HYDRA_PUBLIC_URL'),
@@ -409,9 +408,10 @@ export const appConfigEffect = Config.all({
 
 **Environment Files:**
 
+At runtime the server reads env files from `/etc/hydra-headless-ts/` (see [DEVELOPMENT.md](DEVELOPMENT.md#environment-configuration)). The checked-in examples are:
+
 - [src/env/local.env](src/env/local.env) - Local development
 - [src/env/staging.env](src/env/staging.env) - Staging environment
-- [src/env/production.env](src/env/production.env) - Production environment
 
 ## Error Handling
 

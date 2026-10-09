@@ -161,10 +161,10 @@ This ensures:
 
 ## What fails CI and the build
 
-- `npm run ci` (Woodpecker's test step on `RC`) runs `clean`, `lint`, `format:check`, `tsc` and the tests.
-- `npm run build` (run by the Docker image build) runs `clean`, `lint`, `format:check`, `tsc` and Rollup.
+- `npm run ci` (Woodpecker's test step on `RC`) runs `clean`, `lint`, `format:check`, `knip`, `tsc` and the tests.
+- `npm run build` (run by the Docker image build) runs `clean`, `lint`, `format:check`, `knip`, `tsc` and Rollup.
 
-Any lint error or warning, unformatted file or type error fails both. `npm run format` and `npm run lint:fix` fix most of them.
+Any lint error or warning, unformatted file, unused file, export or dependency (knip) or type error fails both. `npm run format` and `npm run lint:fix` fix most of them.
 
 ### Rollup warnings
 

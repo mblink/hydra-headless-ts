@@ -28,11 +28,6 @@ export interface GoogleOAuthService {
 
   readonly generateAuthUrl: (scope: string, state: string, redirectUrl: string) => Effect.Effect<string, HttpError>;
 
-  readonly getTokensFromCode: (
-    code: string,
-    redirectUrl: string,
-  ) => Effect.Effect<GoogleTokenResponse, HttpError | GoogleAuthError>;
-
   readonly refreshAccessToken: (
     refreshToken: string,
   ) => Effect.Effect<GoogleTokenResponse, HttpError | GoogleAuthError>;
@@ -212,74 +207,6 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
             cause: error,
           }),
       }),
-
-    getTokensFromCode: (code: string, redirectUrl: string) =>
-      pipe(
-        Effect.logInfo('=== GOOGLE getTokensFromCode CALLED ===').pipe(
-          Effect.annotateLogs({
-            has_code: !!code,
-            code_preview: code ? `${code.substring(0, 20)}...` : 'none',
-            redirect_url: redirectUrl,
-            timestamp: new Date().toISOString(),
-          }),
-        ),
-        Effect.andThen(() =>
-          Effect.tryPromise({
-            try: async () => {
-              if (!oauth2Client) {
-                throw new Error('OAuth2Client not initialized - redirectUri required in config');
-              }
-              const response = await oauth2Client.getToken({
-                code,
-                redirect_uri: redirectUrl,
-              });
-              return response.tokens;
-            },
-            catch: (error) => handleAxiosError(error, 'getTokensFromCode'),
-          }),
-        ),
-        Effect.tap((data) =>
-          Effect.logInfo('=== GOOGLE getTokensFromCode RESPONSE ===').pipe(
-            Effect.annotateLogs({
-              has_access_token: !!data.access_token,
-              has_refresh_token: !!data.refresh_token,
-              has_id_token: !!data.id_token,
-              expiry_date: data.expiry_date,
-              scope: data.scope,
-              timestamp: new Date().toISOString(),
-            }),
-          ),
-        ),
-        Effect.flatMap((data) => validateSchema(GoogleTokenResponseSchema, data)),
-        Effect.tap((tokenResponse) =>
-          Effect.logInfo('=== GOOGLE getTokensFromCode SUCCESS ===').pipe(
-            Effect.annotateLogs({
-              expires_in: tokenResponse.expires_in,
-              scope: tokenResponse.scope,
-              has_refresh_token: !!tokenResponse.refresh_token,
-              has_id_token: !!tokenResponse.id_token,
-              timestamp: new Date().toISOString(),
-            }),
-          ),
-        ),
-        Effect.tapError((error) =>
-          Effect.logError('=== GOOGLE getTokensFromCode ERROR ===').pipe(
-            Effect.annotateLogs({
-              error_tag: error._tag,
-              error_details: error,
-              code_preview: code ? `${code.substring(0, 20)}...` : 'none',
-              timestamp: new Date().toISOString(),
-            }),
-          ),
-        ),
-        Effect.mapError((error): HttpError | GoogleAuthError =>
-          error._tag === 'SchemaValidationError'
-            ? new ParseError({
-                message: `Failed to parse Google token response: ${error.errors.join(', ')}`,
-              })
-            : error,
-        ),
-      ),
 
     refreshAccessToken: (refreshToken: string) =>
       pipe(

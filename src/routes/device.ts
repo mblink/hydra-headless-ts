@@ -3,7 +3,6 @@
  *
  * Handles device code verification with CSRF protection.
  */
-import url from 'url';
 import { Effect, pipe } from 'effect';
 import express from 'express';
 import { OAuth2ApiService } from '../api/oauth2.js';
@@ -31,10 +30,8 @@ const mapErrorToHttp = (error: AppError): { status: number; message: string } =>
  * This doesn't need Effect since it's just rendering a form
  */
 router.get('/verify', (req, res, next) => {
-  const query = url.parse(req.url, true).query;
-
   // The challenge is used to fetch information about the device request from ORY Hydra
-  const challenge = String(query.device_challenge);
+  const challenge = typeof req.query.device_challenge === 'string' ? req.query.device_challenge : '';
   if (!challenge) {
     next(new Error('Expected a device challenge to be set but received none.'));
     return;
@@ -49,7 +46,7 @@ router.get('/verify', (req, res, next) => {
       csrfToken,
       envXsrfToken: appConfig.security.xsrfHeaderName,
       challenge,
-      userCode: String(query.user_code ?? ''),
+      userCode: typeof req.query.user_code === 'string' ? req.query.user_code : '',
     }),
   );
 });
@@ -59,7 +56,11 @@ router.get('/verify', (req, res, next) => {
  */
 const createVerifyHandler = (serviceLayer: Layer.Layer<OAuth2ApiService>) => {
   return async (req: express.Request, res: express.Response) => {
-    const { code: userCode, challenge } = req.body;
+    // Field names match views/device/verify.tsx (user_code per RFC 8628)
+    const { user_code: userCode, challenge } = req.body as {
+      user_code?: string;
+      challenge?: string;
+    };
 
     if (!challenge || !userCode) {
       res.status(400).send('Missing challenge or user_code');
@@ -102,5 +103,3 @@ export const createDeviceRouter = (serviceLayer: Layer.Layer<OAuth2ApiService>) 
   router.post('/verify', doubleCsrfProtection, createVerifyHandler(serviceLayer));
   return router;
 };
-
-export default router;

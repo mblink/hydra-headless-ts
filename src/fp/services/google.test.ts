@@ -220,49 +220,6 @@ describe('GoogleOAuthService', () => {
     });
   });
 
-  describe('getTokensFromCode', () => {
-    it('should exchange code for tokens successfully', async () => {
-      const mockTokenResponse = {
-        tokens: {
-          access_token: 'access-token-123',
-          token_type: 'Bearer',
-          expires_in: 3600,
-          scope: 'openid profile email',
-          refresh_token: 'refresh-token-123',
-          id_token: 'id-token-123',
-        },
-      };
-
-      const mockOAuth2Client = {
-        getToken: vi.fn().mockResolvedValue(mockTokenResponse),
-      };
-
-      vi.mocked(OAuth2Client).mockImplementation(constructorReturning(mockOAuth2Client as any));
-      googleService = makeGoogleOAuthService(mockConfig);
-
-      const program = googleService.getTokensFromCode('auth-code-123', 'https://auth.example.com/callback');
-      const result = await Effect.runPromise(program);
-
-      expect(result.access_token).toBe('access-token-123');
-      expect(result.refresh_token).toBe('refresh-token-123');
-      expect(mockOAuth2Client.getToken).toHaveBeenCalledWith(expect.objectContaining({ code: 'auth-code-123' }));
-    });
-
-    it('should handle token exchange errors', async () => {
-      const mockOAuth2Client = {
-        getToken: vi.fn().mockRejectedValue(new Error('Invalid code')),
-      };
-
-      vi.mocked(OAuth2Client).mockImplementation(constructorReturning(mockOAuth2Client as any));
-      googleService = makeGoogleOAuthService(mockConfig);
-
-      const program = googleService.getTokensFromCode('invalid-code', 'https://example.com');
-      const result = await Effect.runPromise(Effect.either(program));
-
-      expect(result._tag).toBe('Left');
-    });
-  });
-
   describe('refreshAccessToken', () => {
     it('should refresh access token successfully', async () => {
       const mockResponse: GoogleTokenResponse = {
