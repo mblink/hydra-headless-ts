@@ -153,7 +153,7 @@ See [README.test.md](README.test.md) for detailed testing documentation.
 
 The project follows TypeScript and functional programming best practices:
 
-- **ESLint 9** with flat config
+- **ESLint 10** with flat config
 - **TypeScript ESLint** for type-aware linting
 - **Import order** enforcement
 - **Functional programming** patterns
@@ -177,6 +177,14 @@ Build outputs:
 
 - `dist/` - Compiled JavaScript
 - `lib/` - Package distribution
+
+`npm run build` lints, checks formatting and type checks before bundling, and fails on any of them; see [What fails CI and the build](LINTING.md#what-fails-ci-and-the-build).
+
+## CI
+
+- `RC` is tested and built by Woodpecker (`.woodpecker.yml`): `npm run ci`, then the Docker image build and push to ECR, then an email to the commit author on failure. GitHub Actions (`.github/workflows/ci.yml`) only exists on `main`.
+- Woodpecker runs for pushes to `RC` and PRs whose base is `RC`. A PR stacked on another branch gets no checks until it is retargeted to `RC`.
+- The CI image's `/node_modules` is installed from `RC`'s `package.json` when the image is built, so the test step runs `npm ci` first to test a PR's own dependencies from its `package-lock.json`. The image build clones the branch being built (`CI_COMMIT_SOURCE_BRANCH` for a PR, `CI_COMMIT_BRANCH` for a push; see `build/rebuild.sh`).
 
 ## Running the Application
 
@@ -407,3 +415,7 @@ git commit -m "feat: add my feature"
 # Push
 git push origin feature/my-feature
 ```
+
+### Reformatting commits and `git blame`
+
+Bulk reformat commits are listed in `.git-blame-ignore-revs`. Run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once per clone so `git blame` skips them (GitHub's blame view reads the file automatically). Merge a PR that adds an entry with a merge commit, not squash or rebase: those create new hashes, and the listed ones stop matching.

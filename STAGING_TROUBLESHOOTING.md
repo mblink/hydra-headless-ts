@@ -51,6 +51,30 @@ mistake doesn't cost another debugging session.
   ad-hoc commands typed by hand; those still need the flags spelled out (see
   the diagnostic commands throughout this doc for the exact invocation).
 
+## App startup and sessions
+
+- **The container exits at startup naming `SESSION_SECRET` and
+  `COOKIE_SECRET`.** Outside `APP_ENV=local` neither has a default, so a
+  missing one stops startup instead of falling back to a value committed in
+  this repo. They come from `app_session_secret` and `app_cookie_secret`
+  under `shared-hydra-config` in salt's
+  `pillar/<env>/hydra-headless-ts/locked.sls`, rendered into
+  `/etc/hydra-headless-ts/hydra.env` (see the two propagation steps under
+  Docker Compose above). Changing `SESSION_SECRET` logs every user out once.
+
+- **Sign-in fails at `/callback` with a 400, or the browser never gets a
+  session cookie.** When `BASE_URL` is https the session cookie is `Secure`,
+  and express-session silently skips setting a `Secure` cookie unless the
+  request looks like https. That depends on the whole chain: HAProxy's
+  `hydra-headless-ts` backend sets `X-Forwarded-Proto https`, the host
+  nginx location forwards it (`proxy_set_header X-Forwarded-Proto
+  $http_x_forwarded_proto`), and the app trusts exactly one proxy hop
+  (`app.set('trust proxy', 1)` in `src/app-fp.ts`). Check those three before
+  the app code. Without the session, `/callback` can't match Google's `state`
+  to the flow and rejects it. The session and CSRF cookies are
+  `SameSite=Lax` so they still arrive on Google's top-level redirect back to
+  `/callback`; `Strict` would break sign-in.
+
 ## OAuth client configuration (Hydra + Google)
 
 - **Two unrelated "client" concepts, easy to conflate:** `AUTH_FLOW_CLIENT_ID`
