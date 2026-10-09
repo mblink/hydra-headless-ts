@@ -104,7 +104,7 @@ const mapErrorToOAuth2 = (error: AppError): { status: number; body: object } => 
  * 4. Context-based dependency injection via Layers
  * 5. No side effects in the handler - all IO wrapped in Effect
  */
-export const createTokenHandler = (serviceLayer: Layer.Layer<RedisService | GoogleOAuthService | JWTService>) => {
+const createTokenHandler = (serviceLayer: Layer.Layer<RedisService | GoogleOAuthService | JWTService>) => {
   return async (req: express.Request, res: express.Response) => {
     const program = Effect.gen(function* () {
       // Log incoming request with comprehensive details
@@ -255,5 +255,3 @@ export const createTokenRouter = (serviceLayer: Layer.Layer<RedisService | Googl
   router.post('/token', createTokenHandler(serviceLayer));
   return router;
 };
-
-export default router;

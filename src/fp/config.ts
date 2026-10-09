@@ -5,7 +5,7 @@
  * Configuration is loaded from environment variables with proper validation
  * and type safety. Uses Effect for composable, testable configuration.
  */
-import { Config, Effect, Layer, pipe, Context } from 'effect';
+import { Config, Effect, pipe } from 'effect';
 import type { SameSiteType } from 'csrf-csrf';
 
 /**
@@ -67,7 +67,7 @@ export interface GoogleOAuthConfig {
  * - 'hydra': Sign JWTs with keys from Hydra's JWKS (default)
  * - 'google': Sign JWTs with keys from Google's JWKS for MCP server compatibility
  */
-export type JWTProvider = 'hydra' | 'google';
+type JWTProvider = 'hydra' | 'google';
 
 /**
  * Security configuration
@@ -118,6 +118,7 @@ export interface AppConfig {
   readonly google: GoogleOAuthConfig;
   readonly security: SecurityConfig;
   readonly cimd: CimdConfig;
+  readonly logDir: string;
 }
 
 /**
@@ -349,6 +350,12 @@ const cimdConfig: Config.Config<CimdConfig> = Config.all({
 });
 
 /**
+ * Directory for the rotating file log. Exported on its own so logging-effect.ts can read it
+ * without importing the full app config (which itself logs through logging-effect.ts).
+ */
+export const logDirConfig = Config.string('LOG_DIR').pipe(Config.withDefault('/var/log/hydra-headless-ts'));
+
+/**
  * Complete application configuration
  */
 export const appConfigEffect = Effect.gen(function* () {
@@ -392,6 +399,7 @@ export const appConfigEffect = Effect.gen(function* () {
   );
 
   const cimd = yield* cimdConfig;
+  const logDir = yield* logDirConfig;
   console.warn('[config:cimd] CIMD Settings:', cimd);
   return {
     environment: env,
@@ -407,18 +415,9 @@ export const appConfigEffect = Effect.gen(function* () {
     google,
     security,
     cimd,
+    logDir,
   };
 });
-
-/**
- * Service tag for AppConfig
- */
-export const AppConfigService = Context.GenericTag<AppConfig>('@services/AppConfig');
-
-/**
- * Layer that provides AppConfig
- */
-export const AppConfigLive = Layer.effect(AppConfigService, appConfigEffect);
 
 /**
  * Load configuration synchronously (for backwards compatibility)
@@ -432,22 +431,11 @@ export const loadAppConfigSync = (): AppConfig => {
 /**
  * Helper functions for constructing URLs
  */
-export const constructUrl = (protocol: 'http' | 'https', host: string, port?: number): string => {
+const constructUrl = (protocol: 'http' | 'https', host: string, port?: number): string => {
   if (!port || (protocol === 'http' && port === 80) || (protocol === 'https' && port === 443)) {
     return `${protocol}://${host}`;
   }
   return `${protocol}://${host}:${port}`;
-};
-
-export const getJWKSUrl = (config: AppConfig): string => {
-  const protocol = config.security.mockTlsTermination ? 'http' : 'https';
-  return `${constructUrl(protocol, config.domain.public, config.port)}/.well-known/jwks.json`;
-};
-/**
- * Get Hydra public URL
- */
-export const getHydraPublicUrl = (config: AppConfig): string => {
-  return config.hydra.public.url;
 };
 
 /**

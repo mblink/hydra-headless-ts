@@ -26,7 +26,7 @@ export GIT_ASKPASS=/run/secrets/askpass.sh GIT_TERMINAL_PROMPT=0
 git clone --depth 1 --branch "$GIT_BRANCH" https://github.com/mblink/hydra-headless-ts.git .
 CLONE
 
-RUN npm install \
+RUN npm ci \
   && npm run build
 
 COPY build/entrypoint.sh /entrypoint.sh

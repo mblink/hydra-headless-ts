@@ -129,5 +129,3 @@ export const createConsentRouter = (serviceLayer: Layer.Layer<HydraService>, con
   router.get('/', createConsentHandler(serviceLayer, config));
   return router;
 };
-
-export default router;

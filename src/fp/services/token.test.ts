@@ -256,6 +256,38 @@ describe('processAuthCodeGrant subject', () => {
   });
 });
 
+describe('processAuthCodeGrant Google token lifetime', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(isEmailAllowed).mockReturnValue(true);
+    vi.mocked(decodeJwt).mockReturnValue({ email: 'user@bondlink.com' } as any);
+  });
+
+  it('measures the lifetime at exchange time from google_expires_at', async () => {
+    // The stored expires_in (3600) is stale; the absolute expiry is what counts
+    const googleExpiresAt = Date.now() + 1000 * 1000;
+
+    const result = await runAuthCodeGrant(
+      makeAuthCodeRedis({ ...validAuthCodeData, google_expires_at: googleExpiresAt }),
+    );
+
+    assert(Either.isRight(result));
+    expect(result.right.expires_in).toBeGreaterThan(990);
+    expect(result.right.expires_in).toBeLessThanOrEqual(1000);
+    expect(stubJWT.sign).toHaveBeenCalledWith(expect.anything(), result.right.expires_in, expect.anything());
+  });
+
+  it('rejects the exchange when the Google token has already expired', async () => {
+    const result = await runAuthCodeGrant(
+      makeAuthCodeRedis({ ...validAuthCodeData, google_expires_at: Date.now() - 1000 }),
+    );
+
+    assert(Either.isLeft(result));
+    expect(result.left).toBeInstanceOf(InvalidGrant);
+    expect(stubJWT.sign).not.toHaveBeenCalled();
+  });
+});
+
 describe('processRefreshTokenGrant email choke point', () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -66,11 +66,23 @@ export const processAuthCodeGrant = (
       return yield* Effect.fail(new InvalidGrant({ reason: 'Authorization code has no authenticated subject' }));
     }
 
+    // Remaining Google token lifetime, measured now rather than at callback time
+    const tokenObj = authData.google_tokens.tokens;
+    const now = Date.now();
+    const expiresAt = authData.google_expires_at ?? now + tokenObj.expires_in * 1000;
+    const expiresIn = Math.floor((expiresAt - now) / 1000);
+    if (expiresIn <= 0) {
+      return yield* Effect.fail(
+        new InvalidGrant({
+          reason: 'Google access token expired before the authorization code was exchanged',
+        }),
+      );
+    }
+
     // Step 5: Store Google's tokens in Redis (indexed by JTI)
     // Use the originally-requested scope from the PKCE state (e.g. "openid profile email offline_access")
     // rather than Google's URL-format scope (e.g. "https://www.googleapis.com/auth/...").
     // The client (Claude.ai) validates that the returned scope matches what it requested.
-    const tokenObj = authData.google_tokens.tokens;
     const grantedScope = pkceState.scope;
     const googleTokenData: GoogleTokenData = {
       google_access_token: tokenObj.access_token,
@@ -79,8 +91,8 @@ export const processAuthCodeGrant = (
       scope: grantedScope,
       subject,
       client_id: pkceState.client_id,
-      expires_at: Date.now() + tokenObj.expires_in * 1000,
-      updated_at: Date.now(),
+      expires_at: expiresAt,
+      updated_at: now,
     };
 
     yield* redisOps.setGoogleToken(jti, googleTokenData);
@@ -109,7 +121,7 @@ export const processAuthCodeGrant = (
         client_id: pkceState.client_id,
         jti,
       },
-      tokenObj.expires_in,
+      expiresIn,
       googleTokenData.google_id_token, // Pass Google ID token for Google mode
     );
 
@@ -117,7 +129,7 @@ export const processAuthCodeGrant = (
     const response: OAuth2TokenResponse = {
       access_token: accessToken, // JWT instead of Google's opaque token
       token_type: 'Bearer',
-      expires_in: tokenObj.expires_in,
+      expires_in: expiresIn,
       refresh_token: ourRefreshToken, // Our own refresh token
       scope: grantedScope,
     };

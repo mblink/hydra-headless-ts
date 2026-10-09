@@ -38,7 +38,14 @@ export interface DeviceVerifyProps {
   userCode?: string;
 }
 
-export function DeviceVerify({ action, envXsrfToken, csrfToken, error, userCode = '' }: DeviceVerifyProps): string {
+export function DeviceVerify({
+  action,
+  envXsrfToken,
+  csrfToken,
+  challenge,
+  error,
+  userCode = '',
+}: DeviceVerifyProps): string {
   return Layout({
     title: 'Device Verification',
     children: (
@@ -53,6 +60,7 @@ export function DeviceVerify({ action, envXsrfToken, csrfToken, error, userCode 
 
         <form action={action} method="POST">
           <input type="hidden" name={envXsrfToken} value={csrfToken} />
+          <input type="hidden" name="challenge" value={challenge} />
           <input type="text" id="user_code" name="user_code" value={userCode} placeholder="XXXX-XXXX" required />
           <br />
           <input type="submit" value="Verify" />

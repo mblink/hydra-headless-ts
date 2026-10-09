@@ -1,3 +1,6 @@
-# Bulk Prettier reformat (.prettierrc.json)
+# Bulk Prettier reformats (.prettierrc.json)
 0eaefb0f65010cfdb90a8317124df72b5b6f95f5
 08b8545f89767c105e3196aa48dd4d79e0e1a688
+# main's reformat, and main reformatted to RC's settings before merging into RC
+fc61ac9b82eb9e11cfa3bb54f83694458d445b90
+5905f6a6f77db3c0db44b739f1d4e83ff0598004

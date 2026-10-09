@@ -4,7 +4,7 @@ import { GoogleAuthError, InvalidState, UnauthorizedEmail } from '../errors.js';
 import { processCallback, type GoogleOAuthClient } from './callback.js';
 import { isEmailAllowed } from './emailAllowlist.js';
 import { RedisService } from './redis.js';
-import type { PKCEState } from '../domain.js';
+import type { AuthCodeData, PKCEState } from '../domain.js';
 
 vi.mock('./emailAllowlist.js', () => ({ isEmailAllowed: vi.fn() }));
 vi.mock('../../logging-effect.js', () => ({
@@ -204,6 +204,34 @@ describe('processCallback email choke point', () => {
     // The subject is the Google account id, not a placeholder
     const authCodeWrite = setJSON.mock.calls.find(([key]) => String(key).startsWith('auth_code:'));
     expect(authCodeWrite?.[1]).toMatchObject({ subject: 'google-user-123' });
+  });
+});
+
+describe('processCallback Google token lifetime', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(isEmailAllowed).mockReturnValue(true);
+  });
+
+  it("stores Google's real lifetime and absolute expiry from expiry_date", async () => {
+    const googleExpiresAt = Date.now() + 1799 * 1000;
+    // Shape returned by google-auth-library's getToken(): expiry_date instead of expires_in
+    const { expires_in: _, ...withoutExpiresIn } = fullGoogleTokens.tokens;
+    const { redis, setJSON } = makeTestRedis();
+
+    const result = await run(
+      redis,
+      makeGoogleClient(undefined, { tokens: { ...withoutExpiresIn, expiry_date: googleExpiresAt } }),
+    );
+
+    expect(result._tag).toBe('Right');
+    const authCodeWrite = setJSON.mock.calls.find(([key]) => String(key).startsWith('auth_code:'));
+    const authData = authCodeWrite?.[1] as AuthCodeData;
+    // Uses Google's real lifetime rather than a hardcoded 3600
+    expect(authData.google_tokens.tokens.expires_in).toBeGreaterThanOrEqual(1798);
+    expect(authData.google_tokens.tokens.expires_in).toBeLessThanOrEqual(1799);
+    // The absolute expiry is stored so the exchange can measure the remaining lifetime
+    expect(authData.google_expires_at).toBe(googleExpiresAt);
   });
 });
 
