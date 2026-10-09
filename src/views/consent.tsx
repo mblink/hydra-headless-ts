@@ -1,5 +1,5 @@
-import Html from '@kitajs/html'
-import { Layout } from './components/Layout.js'
+import Html from '@kitajs/html';
+import { Layout } from './components/Layout.js';
 
 /**
  * OAuth2 Consent Flow - Step 2: Authorization
@@ -25,24 +25,24 @@ import { Layout } from './components/Layout.js'
  */
 export interface ConsentProps {
   /** POST endpoint for consent form submission */
-  action: string
+  action: string;
   /** XSRF token header name for CSRF protection */
-  envXsrfToken: string
+  envXsrfToken: string;
   /** CSRF token value */
-  csrfToken: string
+  csrfToken: string;
   /** Hydra's consent challenge identifying this OAuth2 flow */
-  challenge: string
+  challenge: string;
   /** OAuth2 scopes requested by the client (e.g., openid, profile, email) */
-  requestedScope?: string[]
+  requestedScope?: string[];
   /** OAuth2 client metadata from Hydra */
   client?: {
     /** Client application name */
-    client_name?: string
+    client_name?: string;
     /** Privacy policy URL */
-    policy_uri?: string
+    policy_uri?: string;
     /** Terms of service URL */
-    tos_uri?: string
-  }
+    tos_uri?: string;
+  };
 }
 
 export function Consent({
@@ -59,8 +59,8 @@ export function Consent({
       <>
         <h1>Authorize {client?.client_name ?? 'Application'}</h1>
         <p>
-          Hi there! The application <strong>{client?.client_name ?? 'Unknown'}</strong> wants
-          access to your data. The following permissions are requested:
+          Hi there! The application <strong>{client?.client_name ?? 'Unknown'}</strong> wants access to your data. The
+          following permissions are requested:
         </p>
 
         {requestedScope.length > 0 && (
@@ -97,5 +97,5 @@ export function Consent({
         )}
       </>
     ),
-  })
+  });
 }

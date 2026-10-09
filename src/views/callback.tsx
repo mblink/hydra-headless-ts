@@ -1,5 +1,5 @@
-import Html from '@kitajs/html'
-import { Layout } from './components/Layout.js'
+import Html from '@kitajs/html';
+import { Layout } from './components/Layout.js';
 
 /**
  * OAuth2 Callback Handler - Google OAuth Bridge
@@ -24,7 +24,7 @@ import { Layout } from './components/Layout.js'
  */
 export interface CallbackProps {
   /** The redirect URL where user will be sent after callback processing */
-  url: string
+  url: string;
 }
 
 export function Callback({ url }: CallbackProps): string {
@@ -38,5 +38,5 @@ export function Callback({ url }: CallbackProps): string {
         </p>
       </>
     ),
-  })
+  });
 }

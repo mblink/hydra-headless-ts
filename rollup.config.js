@@ -15,8 +15,17 @@ const config = [
 
     },
     external: packageJson.dependencies ? Object.keys(packageJson.dependencies) : [],
+    // Any warning fails the build, except two known ones from bundled dependencies:
+    // @ory/hydra-client-fetch's TypeScript helpers use top-level `this`, and pg and pg-pool import each other
+    onwarn(warning) {
+      const fromDependency = [warning.id, ...(warning.ids ?? [])].some((id) => id?.includes('/node_modules/'))
+      if (fromDependency && ['THIS_IS_UNDEFINED', 'CIRCULAR_DEPENDENCY'].includes(warning.code)) {
+        return
+      }
+      throw new Error(`Rollup warning treated as error: ${warning.message}`)
+    },
     plugins: [
-      typescript(),
+      typescript({ noEmitOnError: true }),
       json(),
       resolve({preferBuiltins:true}),
       commonjs({include: ['src/app.ts', 'node_modules/**']}),

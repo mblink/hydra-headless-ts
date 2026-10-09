@@ -1,5 +1,5 @@
-import Html from '@kitajs/html'
-import { Layout } from './components/Layout.js'
+import Html from '@kitajs/html';
+import { Layout } from './components/Layout.js';
 
 /**
  * OAuth2 Login Flow - Step 1: Authentication
@@ -20,27 +20,20 @@ import { Layout } from './components/Layout.js'
  */
 export interface LoginProps {
   /** POST endpoint for login form submission */
-  action: string
+  action: string;
   /** XSRF token header name for CSRF protection */
-  envXsrfToken: string
+  envXsrfToken: string;
   /** CSRF token value */
-  csrfToken: string
+  csrfToken: string;
   /** Hydra's login challenge identifying this OAuth2 flow */
-  challenge: string
+  challenge: string;
   /** Email hint from OAuth2 request (login_hint parameter) */
-  hint?: string
+  hint?: string;
   /** Error message if authentication failed */
-  error?: string
+  error?: string;
 }
 
-export function Login({
-  action,
-  envXsrfToken,
-  csrfToken,
-  challenge,
-  hint = '',
-  error,
-}: LoginProps): string {
+export function Login({ action, envXsrfToken, csrfToken, challenge, hint = '', error }: LoginProps): string {
   return Layout({
     title: 'Login',
     children: (
@@ -53,13 +46,7 @@ export function Login({
           <table>
             <tr>
               <td>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={hint}
-                  placeholder="email@foobar.com"
-                />
+                <input type="email" id="email" name="email" value={hint} placeholder="email@foobar.com" />
               </td>
               <td>(it's "foo@bar.com")</td>
             </tr>
@@ -78,5 +65,5 @@ export function Login({
         </form>
       </>
     ),
-  })
+  });
 }

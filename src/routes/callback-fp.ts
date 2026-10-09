@@ -1,14 +1,14 @@
 /**
  * Functional Google OAuth callback route using Effect
  */
-import { Effect, pipe } from 'effect'
-import express from 'express'
-import { type AppError } from '../fp/errors.js'
-import { processCallback, type GoogleOAuthClient, type CallbackConfig } from '../fp/services/callback.js'
-import type { RedisService } from '../fp/services/redis.js'
+import { Effect, pipe } from 'effect';
+import express from 'express';
+import { type AppError } from '../fp/errors.js';
+import { processCallback, type GoogleOAuthClient, type CallbackConfig } from '../fp/services/callback.js';
+import type { RedisService } from '../fp/services/redis.js';
 import type { Layer } from 'effect';
 
-const router = express.Router()
+const router = express.Router();
 
 /**
  * Map application errors to HTTP responses
@@ -16,22 +16,22 @@ const router = express.Router()
 const mapErrorToHttp = (error: AppError): { status: number; message: string } => {
   switch (error._tag) {
     case 'UnauthorizedEmail':
-      return { status: 403, message: 'Email not authorized to access this service' }
+      return { status: 403, message: 'Email not authorized to access this service' };
     case 'GoogleAuthError':
       return {
         status: 400,
         message: `Google token exchange failed: ${error.errorDescription}`,
-      }
+      };
     case 'RedisKeyNotFound':
-      return { status: 400, message: 'Authorization request not found or expired' }
+      return { status: 400, message: 'Authorization request not found or expired' };
     case 'InvalidState':
-      return { status: 400, message: 'Authorization request was started in a different browser' }
+      return { status: 400, message: 'Authorization request was started in a different browser' };
     case 'RedisParseError':
-      return { status: 500, message: 'Session data corrupted' }
+      return { status: 500, message: 'Session data corrupted' };
     default:
-      return { status: 500, message: 'Internal server error' }
+      return { status: 500, message: 'Internal server error' };
   }
-}
+};
 
 /**
  * Callback handler
@@ -39,12 +39,12 @@ const mapErrorToHttp = (error: AppError): { status: number; message: string } =>
 const createCallbackHandler = (
   serviceLayer: Layer.Layer<RedisService>,
   googleClient: GoogleOAuthClient,
-  config: CallbackConfig
+  config: CallbackConfig,
 ) => {
   return async (req: express.Request, res: express.Response) => {
-    const code = typeof req.query.code === 'string' ? req.query.code : undefined
+    const code = typeof req.query.code === 'string' ? req.query.code : undefined;
     // The flow id consent sent to Google (see setup/proxy.ts)
-    const returnedState = typeof req.query.state === 'string' ? req.query.state : undefined
+    const returnedState = typeof req.query.state === 'string' ? req.query.state : undefined;
 
     // Log entry point
     await Effect.runPromise(
@@ -66,9 +66,9 @@ const createCallbackHandler = (
           ip: req.ip,
           timestamp: new Date().toISOString(),
         }),
-        Effect.provide(serviceLayer)
-      )
-    )
+        Effect.provide(serviceLayer),
+      ),
+    );
 
     if (!code) {
       await Effect.runPromise(
@@ -77,11 +77,11 @@ const createCallbackHandler = (
             query: req.query,
             timestamp: new Date().toISOString(),
           }),
-          Effect.provide(serviceLayer)
-        )
-      )
-      res.status(400).send('Missing authorization code')
-      return
+          Effect.provide(serviceLayer),
+        ),
+      );
+      res.status(400).send('Missing authorization code');
+      return;
     }
 
     if (!returnedState) {
@@ -91,11 +91,11 @@ const createCallbackHandler = (
             query: req.query,
             timestamp: new Date().toISOString(),
           }),
-          Effect.provide(serviceLayer)
-        )
-      )
-      res.status(400).send('Missing state')
-      return
+          Effect.provide(serviceLayer),
+        ),
+      );
+      res.status(400).send('Missing state');
+      return;
     }
 
     const program = pipe(
@@ -104,16 +104,16 @@ const createCallbackHandler = (
           code_preview: `${code.substring(0, 20)}...`,
           state_preview: `${returnedState.substring(0, 20)}...`,
           config,
-        })
+        }),
       ),
       Effect.andThen(() => processCallback(code, returnedState, req.session.id, googleClient, config)),
-      Effect.provide(serviceLayer)
-    )
+      Effect.provide(serviceLayer),
+    );
 
-    const result = await Effect.runPromise(Effect.either(program))
+    const result = await Effect.runPromise(Effect.either(program));
 
     if (result._tag === 'Left') {
-      const { status, message } = mapErrorToHttp(result.left)
+      const { status, message } = mapErrorToHttp(result.left);
 
       await Effect.runPromise(
         Effect.logError('=== CALLBACK ERROR ===').pipe(
@@ -125,11 +125,11 @@ const createCallbackHandler = (
             code_preview: `${code.substring(0, 20)}...`,
             timestamp: new Date().toISOString(),
           }),
-          Effect.provide(serviceLayer)
-        )
-      )
+          Effect.provide(serviceLayer),
+        ),
+      );
 
-      res.status(status).send(message)
+      res.status(status).send(message);
     } else {
       await Effect.runPromise(
         Effect.logInfo('=== CALLBACK SUCCESS ===').pipe(
@@ -138,14 +138,14 @@ const createCallbackHandler = (
             code_preview: `${code.substring(0, 20)}...`,
             timestamp: new Date().toISOString(),
           }),
-          Effect.provide(serviceLayer)
-        )
-      )
+          Effect.provide(serviceLayer),
+        ),
+      );
 
-      res.redirect(result.right)
+      res.redirect(result.right);
     }
-  }
-}
+  };
+};
 
 /**
  * Create callback router with service layer
@@ -153,10 +153,10 @@ const createCallbackHandler = (
 export const createCallbackRouter = (
   serviceLayer: Layer.Layer<RedisService>,
   googleClient: GoogleOAuthClient,
-  config: CallbackConfig
+  config: CallbackConfig,
 ) => {
-  router.get('/', createCallbackHandler(serviceLayer, googleClient, config))
-  return router
-}
+  router.get('/', createCallbackHandler(serviceLayer, googleClient, config));
+  return router;
+};
 
-export default router
+export default router;

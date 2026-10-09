@@ -1,15 +1,15 @@
 /**
  * Functional consent route using Effect
  */
-import { Effect, pipe } from 'effect'
-import express from 'express'
-import { type AppError } from '../fp/errors.js'
-import { processConsent, type ConsentConfig } from '../fp/services/consent.js'
-import { ErrorPage } from '../views/index.js'
-import type { HydraService } from '../fp/services/hydra.js'
-import type { Layer } from 'effect'
+import { Effect, pipe } from 'effect';
+import express from 'express';
+import { type AppError } from '../fp/errors.js';
+import { processConsent, type ConsentConfig } from '../fp/services/consent.js';
+import { ErrorPage } from '../views/index.js';
+import type { HydraService } from '../fp/services/hydra.js';
+import type { Layer } from 'effect';
 
-const router = express.Router()
+const router = express.Router();
 
 /**
  * Map application errors to HTTP responses
@@ -17,26 +17,23 @@ const router = express.Router()
 const mapErrorToHttp = (error: AppError): { status: number; message: string } => {
   switch (error._tag) {
     case 'HttpStatusError':
-      return { status: error.status, message: error.statusText }
+      return { status: error.status, message: error.statusText };
     case 'NetworkError':
-      return { status: 500, message: 'Network error communicating with Hydra' }
+      return { status: 500, message: 'Network error communicating with Hydra' };
     case 'InvalidState':
-      return { status: 400, message: 'Authorization request not found or expired' }
+      return { status: 400, message: 'Authorization request not found or expired' };
     default:
-      return { status: 500, message: 'Internal server error' }
+      return { status: 500, message: 'Internal server error' };
   }
-}
+};
 
 /**
  * Consent handler
  */
-const createConsentHandler = (
-  serviceLayer: Layer.Layer<HydraService>,
-  config: ConsentConfig
-) => {
+const createConsentHandler = (serviceLayer: Layer.Layer<HydraService>, config: ConsentConfig) => {
   return async (req: express.Request, res: express.Response) => {
-    const challenge = String(req.query.consent_challenge)
-    const requestedScope = req.query.requested_scope as string | undefined
+    const challenge = String(req.query.consent_challenge);
+    const requestedScope = req.query.requested_scope as string | undefined;
 
     // Log entry point
     await Effect.runPromise(
@@ -58,9 +55,9 @@ const createConsentHandler = (
           ip: req.ip,
           timestamp: new Date().toISOString(),
         }),
-        Effect.provide(serviceLayer)
-      )
-    )
+        Effect.provide(serviceLayer),
+      ),
+    );
 
     if (!challenge) {
       await Effect.runPromise(
@@ -69,11 +66,11 @@ const createConsentHandler = (
             query: req.query,
             timestamp: new Date().toISOString(),
           }),
-          Effect.provide(serviceLayer)
-        )
-      )
-      res.status(400).send('Missing consent_challenge parameter')
-      return
+          Effect.provide(serviceLayer),
+        ),
+      );
+      res.status(400).send('Missing consent_challenge parameter');
+      return;
     }
 
     const program = pipe(
@@ -82,16 +79,16 @@ const createConsentHandler = (
           challenge_preview: `${challenge.substring(0, 20)}...`,
           requested_scope: requestedScope,
           config,
-        })
+        }),
       ),
       Effect.andThen(() => processConsent(challenge, config, requestedScope)),
-      Effect.provide(serviceLayer)
-    )
+      Effect.provide(serviceLayer),
+    );
 
-    const result = await Effect.runPromise(Effect.either(program))
+    const result = await Effect.runPromise(Effect.either(program));
 
     if (result._tag === 'Left') {
-      const { status, message } = mapErrorToHttp(result.left)
+      const { status, message } = mapErrorToHttp(result.left);
 
       await Effect.runPromise(
         Effect.logError('=== CONSENT ERROR ===').pipe(
@@ -103,11 +100,11 @@ const createConsentHandler = (
             challenge_preview: `${challenge.substring(0, 20)}...`,
             timestamp: new Date().toISOString(),
           }),
-          Effect.provide(serviceLayer)
-        )
-      )
+          Effect.provide(serviceLayer),
+        ),
+      );
 
-      res.status(status).send(ErrorPage({ message }))
+      res.status(status).send(ErrorPage({ message }));
     } else {
       await Effect.runPromise(
         Effect.logInfo('=== CONSENT SUCCESS ===').pipe(
@@ -116,24 +113,21 @@ const createConsentHandler = (
             challenge_preview: `${challenge.substring(0, 20)}...`,
             timestamp: new Date().toISOString(),
           }),
-          Effect.provide(serviceLayer)
-        )
-      )
+          Effect.provide(serviceLayer),
+        ),
+      );
 
-      res.redirect(result.right)
+      res.redirect(result.right);
     }
-  }
-}
+  };
+};
 
 /**
  * Create consent router with service layer
  */
-export const createConsentRouter = (
-  serviceLayer: Layer.Layer<HydraService>,
-  config: ConsentConfig
-) => {
-  router.get('/', createConsentHandler(serviceLayer, config))
-  return router
-}
+export const createConsentRouter = (serviceLayer: Layer.Layer<HydraService>, config: ConsentConfig) => {
+  router.get('/', createConsentHandler(serviceLayer, config));
+  return router;
+};
 
-export default router
+export default router;

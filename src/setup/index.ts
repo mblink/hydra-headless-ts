@@ -1,14 +1,12 @@
 import * as crypto from 'crypto';
-import { doubleCsrf } from "csrf-csrf";
-import { appConfig } from "../config.js";
-
-
+import { doubleCsrf } from 'csrf-csrf';
+import { appConfig } from '../config.js';
 
 const {
   doubleCsrfProtection, // The middleware to protect routes
-  generateCsrfToken,        // Helper function to generate a CSRF token
+  generateCsrfToken, // Helper function to generate a CSRF token
 } = doubleCsrf({
-  getSecret: () => "G6KaOf8aJsLagw566he8yxOTTO3tInKD",
+  getSecret: () => 'G6KaOf8aJsLagw566he8yxOTTO3tInKD',
   cookieName: appConfig.csrfTokenName,
   cookieOptions: {
     // The forms post to this site, so Lax is enough; browsers reject SameSite=None without Secure
@@ -18,48 +16,41 @@ const {
     maxAge: 30 * 24 * 60 * 60 * 1000,
   },
   getSessionIdentifier: (req) => {
-    return req.session.id
+    return req.session.id;
   },
   // CSRF protection is applied selectively to routes with forms (logout, device/verify)
   // All other routes (including POST /) are not protected
 });
 
-function validatePKCE(verifier:string, challenge:string, challengeMethod:string) {
+function validatePKCE(verifier: string, challenge: string, challengeMethod: string) {
   if (challengeMethod !== 'S256') {
     return false;
   }
 
-  const hash = crypto
-    .createHash('sha256')
-    .update(verifier)
-    .digest();
+  const hash = crypto.createHash('sha256').update(verifier).digest();
 
-  const computedChallenge = hash
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
+  const computedChallenge = hash.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 
   return computedChallenge === challenge;
 }
 
 interface RedisPKCE {
-  code_challenge:string
-  code_challenge_method:string
-  scope: string
-  state: string
-  redirect_uri: string
-  client_id: string
-  timestamp:number
+  code_challenge: string;
+  code_challenge_method: string;
+  scope: string;
+  state: string;
+  redirect_uri: string;
+  client_id: string;
+  timestamp: number;
 }
 interface RedisRefreshToken {
-  client_id: string,
-  refresh_token: string,
-  access_token: string,
-  scope: string,
-  subject: string,
-  created_at:number,
-  expires_in:number
+  client_id: string;
+  refresh_token: string;
+  access_token: string;
+  scope: string;
+  subject: string;
+  created_at: number;
+  expires_in: number;
 }
 interface GoogleTokenResponse {
   access_token: string;
@@ -70,14 +61,10 @@ interface GoogleTokenResponse {
   refresh_token: string | undefined; // if a refresh token is issued
 }
 function base64URLEncode(buffer: Buffer): string {
-  return buffer
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=/g, "")
+  return buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
-export { doubleCsrfProtection, generateCsrfToken, validatePKCE, base64URLEncode }
-export type { RedisPKCE, RedisRefreshToken, GoogleTokenResponse }
+export { doubleCsrfProtection, generateCsrfToken, validatePKCE, base64URLEncode };
+export type { RedisPKCE, RedisRefreshToken, GoogleTokenResponse };
 
 // const configureCSRF = (app: express.Application) => {
 //   app.use(doubleCsrfProtection);
@@ -86,6 +73,5 @@ export type { RedisPKCE, RedisRefreshToken, GoogleTokenResponse }
 //     next();
 //   });
 // };
-
 
 // export {configureCSRF}

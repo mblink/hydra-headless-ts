@@ -60,7 +60,7 @@ steps:
         echo "Build Number: $CI_PIPELINE_NUMBER"
         echo $CI_PIPELINE_NUMBER > /cache/build.txt
 
-  # `npm run ci` == npm-run-all clean lint _tsc test -- same as .drone.yml.
+  # `npm run ci` == npm-run-all clean lint format:check _tsc test.
   # `npm run test:ci` names a script package.json has never defined.
   #
   # The image's /node_modules is installed from RC's package.json at image

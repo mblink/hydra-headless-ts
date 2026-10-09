@@ -1,5 +1,5 @@
-import Html from '@kitajs/html'
-import { Layout } from '../components/Layout.js'
+import Html from '@kitajs/html';
+import { Layout } from '../components/Layout.js';
 
 /**
  * OAuth2 Device Authorization Flow - RFC 8628
@@ -25,26 +25,20 @@ import { Layout } from '../components/Layout.js'
  */
 export interface DeviceVerifyProps {
   /** POST endpoint for verification form submission */
-  action: string
+  action: string;
   /** XSRF token header name for CSRF protection */
-  envXsrfToken: string
+  envXsrfToken: string;
   /** CSRF token value */
-  csrfToken: string
+  csrfToken: string;
   /** Hydra's device challenge identifying this flow */
-  challenge: string
+  challenge: string;
   /** Error message if verification failed */
-  error?: string
+  error?: string;
   /** Pre-filled user code from URL (e.g., from QR code scan) */
-  userCode?: string
+  userCode?: string;
 }
 
-export function DeviceVerify({
-  action,
-  envXsrfToken,
-  csrfToken,
-  error,
-  userCode = '',
-}: DeviceVerifyProps): string {
+export function DeviceVerify({ action, envXsrfToken, csrfToken, error, userCode = '' }: DeviceVerifyProps): string {
   return Layout({
     title: 'Device Verification',
     children: (
@@ -59,18 +53,11 @@ export function DeviceVerify({
 
         <form action={action} method="POST">
           <input type="hidden" name={envXsrfToken} value={csrfToken} />
-          <input
-            type="text"
-            id="user_code"
-            name="user_code"
-            value={userCode}
-            placeholder="XXXX-XXXX"
-            required
-          />
+          <input type="text" id="user_code" name="user_code" value={userCode} placeholder="XXXX-XXXX" required />
           <br />
           <input type="submit" value="Verify" />
         </form>
       </>
     ),
-  })
+  });
 }

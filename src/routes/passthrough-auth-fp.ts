@@ -2,27 +2,19 @@
  * Functional OAuth2 token endpoint using Effect
  * This demonstrates the functional paradigm vs the imperative passthrough-auth.ts
  */
-import { Effect } from 'effect'
-import express from 'express'
-import { decodeJwt } from 'jose'
-import {
-  TokenRequestSchema,
-  AuthCodeGrantSchema,
-  RefreshTokenGrantSchema,
-  createOAuth2Error,
-} from '../fp/domain.js'
-import { type AppError, InvalidGrant } from '../fp/errors.js'
-import {
-  processAuthCodeGrant,
-  processRefreshTokenGrant,
-} from '../fp/services/token.js'
-import { validateSchema } from '../fp/validation.js'
-import type { GoogleOAuthService } from '../fp/services/google.js'
-import type { JWTService } from '../fp/services/jwt.js'
-import type { RedisService } from '../fp/services/redis.js'
+import { Effect } from 'effect';
+import express from 'express';
+import { decodeJwt } from 'jose';
+import { TokenRequestSchema, AuthCodeGrantSchema, RefreshTokenGrantSchema, createOAuth2Error } from '../fp/domain.js';
+import { type AppError, InvalidGrant } from '../fp/errors.js';
+import { processAuthCodeGrant, processRefreshTokenGrant } from '../fp/services/token.js';
+import { validateSchema } from '../fp/validation.js';
+import type { GoogleOAuthService } from '../fp/services/google.js';
+import type { JWTService } from '../fp/services/jwt.js';
+import type { RedisService } from '../fp/services/redis.js';
 import type { Layer } from 'effect';
 
-const router = express.Router()
+const router = express.Router();
 
 /**
  * Map application errors to OAuth2 error responses
@@ -34,73 +26,73 @@ const mapErrorToOAuth2 = (error: AppError): { status: number; body: object } => 
       return {
         status: 400,
         body: createOAuth2Error('invalid_grant', 'PKCE validation failed'),
-      }
+      };
     case 'InvalidGrant':
       return {
         status: 400,
         body: createOAuth2Error('invalid_grant', error.reason),
-      }
+      };
     case 'InvalidScope':
       return {
         status: 400,
         body: createOAuth2Error('invalid_scope', 'Requested scope exceeds granted scope'),
-      }
+      };
     case 'MissingParameter':
       return {
         status: 400,
         body: createOAuth2Error('invalid_request', `${error.parameter} required`),
-      }
+      };
     case 'ExpiredToken':
       return {
         status: 400,
         body: createOAuth2Error('invalid_grant', 'Token expired'),
-      }
+      };
     case 'UnauthorizedEmail':
       return {
         status: 403,
         body: createOAuth2Error('access_denied', 'Email not authorized'),
-      }
+      };
 
     // Redis errors
     case 'RedisKeyNotFound':
       return {
         status: 400,
         body: createOAuth2Error('invalid_grant', 'Invalid or expired authorization code'),
-      }
+      };
 
     // Google OAuth errors
     case 'GoogleAuthError':
       return {
         status: 400,
         body: createOAuth2Error('invalid_grant', error.errorDescription ?? error.error),
-      }
+      };
     case 'GoogleTokenExpired':
     case 'GoogleTokenRevoked':
       return {
         status: 400,
         body: createOAuth2Error('invalid_grant', 'Refresh token expired or revoked'),
-      }
+      };
 
     // Validation errors
     case 'SchemaValidationError':
       return {
         status: 400,
         body: createOAuth2Error('invalid_request', 'Invalid request parameters'),
-      }
+      };
     case 'RequiredFieldMissing':
       return {
         status: 400,
         body: createOAuth2Error('invalid_request', `${error.field} required`),
-      }
+      };
 
     // Generic errors
     default:
       return {
         status: 500,
         body: createOAuth2Error('server_error', 'Internal server error'),
-      }
+      };
   }
-}
+};
 
 /**
  * Main token endpoint handler (Effect version)
@@ -113,9 +105,7 @@ const mapErrorToOAuth2 = (error: AppError): { status: number; body: object } => 
  * 5. No side effects in the handler - all IO wrapped in Effect
  */
 export const createTokenHandler = (serviceLayer: Layer.Layer<RedisService | GoogleOAuthService | JWTService>) => {
-
   return async (req: express.Request, res: express.Response) => {
-
     const program = Effect.gen(function* () {
       // Log incoming request with comprehensive details
       yield* Effect.logInfo('=== TOKEN ENDPOINT CALLED ===').pipe(
@@ -137,15 +127,15 @@ export const createTokenHandler = (serviceLayer: Layer.Layer<RedisService | Goog
           },
           ip: req.ip,
           timestamp: new Date().toISOString(),
-        })
-      )
+        }),
+      );
 
       // Step 1: Validate request body using Effect Schema
-      yield* Effect.logDebug('Validating token request schema')
-      const tokenRequest = yield* validateSchema(TokenRequestSchema, req.body)
+      yield* Effect.logDebug('Validating token request schema');
+      const tokenRequest = yield* validateSchema(TokenRequestSchema, req.body);
       yield* Effect.logDebug('Token request validated successfully').pipe(
-        Effect.annotateLogs({ grant_type: tokenRequest.grant_type })
-      )
+        Effect.annotateLogs({ grant_type: tokenRequest.grant_type }),
+      );
 
       // Step 2: Process based on grant type (discriminated union)
       if (tokenRequest.grant_type === 'authorization_code') {
@@ -153,55 +143,52 @@ export const createTokenHandler = (serviceLayer: Layer.Layer<RedisService | Goog
           Effect.annotateLogs({
             code: `${tokenRequest.code?.substring(0, 50)}...`,
             client_id: tokenRequest.client_id,
-          })
-        )
+          }),
+        );
         // Validate as auth code grant and process
-        const grant = yield* validateSchema(AuthCodeGrantSchema, tokenRequest)
-        const result = yield* processAuthCodeGrant(grant)
+        const grant = yield* validateSchema(AuthCodeGrantSchema, tokenRequest);
+        const result = yield* processAuthCodeGrant(grant);
         yield* Effect.logDebug('Auth code grant processed successfully').pipe(
           Effect.annotateLogs({
             has_access_token: !!result.access_token,
             has_refresh_token: !!result.refresh_token,
             token_type: result.token_type,
             expires_in: result.expires_in,
-          })
-        )
-        return result
+          }),
+        );
+        return result;
       } else if (tokenRequest.grant_type === 'refresh_token') {
         yield* Effect.logDebug('Processing refresh_token grant').pipe(
           Effect.annotateLogs({
             refresh_token: `${tokenRequest.refresh_token?.substring(0, 50)}...`,
-            client_id: tokenRequest.client_id
-          })
-        )
+            client_id: tokenRequest.client_id,
+          }),
+        );
         // Validate as refresh token grant and process
-        const grant = yield* validateSchema(RefreshTokenGrantSchema, tokenRequest)
-        const result = yield* processRefreshTokenGrant(grant)
-        return result
-
+        const grant = yield* validateSchema(RefreshTokenGrantSchema, tokenRequest);
+        const result = yield* processRefreshTokenGrant(grant);
+        return result;
       } else {
         yield* Effect.logDebug('Unsupported grant type received').pipe(
-          Effect.annotateLogs({ grant_type: (tokenRequest as { grant_type: unknown }).grant_type })
-        )
+          Effect.annotateLogs({ grant_type: (tokenRequest as { grant_type: unknown }).grant_type }),
+        );
         return yield* Effect.fail(
           new InvalidGrant({
             reason: `Unsupported grant_type: ${String((tokenRequest as { grant_type: unknown }).grant_type)}`,
-          })
-        )
+          }),
+        );
       }
     }).pipe(
       // Provide service layer
-      Effect.provide(serviceLayer)
-    )
+      Effect.provide(serviceLayer),
+    );
 
     // Step 3: Run the effect and handle result
-    const result = await Effect.runPromise(
-      Effect.either(program)
-    )
+    const result = await Effect.runPromise(Effect.either(program));
 
     // Step 4: Send response based on result
     if (result._tag === 'Left') {
-      const { status, body } = mapErrorToOAuth2(result.left)
+      const { status, body } = mapErrorToOAuth2(result.left);
 
       // Log error with full details
       await Effect.runPromise(
@@ -215,16 +202,16 @@ export const createTokenHandler = (serviceLayer: Layer.Layer<RedisService | Goog
             client_id: req.body?.client_id,
             timestamp: new Date().toISOString(),
           }),
-          Effect.provide(serviceLayer)
-        )
-      )
+          Effect.provide(serviceLayer),
+        ),
+      );
 
-      res.status(status).json(body)
+      res.status(status).json(body);
     } else {
       // Decode the access token to log its claims (helps verify what Claude.ai receives)
-      let tokenClaims: Record<string, unknown> = {}
+      let tokenClaims: Record<string, unknown> = {};
       try {
-        tokenClaims = decodeJwt(result.right.access_token) as Record<string, unknown>
+        tokenClaims = decodeJwt(result.right.access_token) as Record<string, unknown>;
       } catch {
         // Non-JWT access token — leave claims empty
       }
@@ -252,21 +239,21 @@ export const createTokenHandler = (serviceLayer: Layer.Layer<RedisService | Goog
             },
             timestamp: new Date().toISOString(),
           }),
-          Effect.provide(serviceLayer)
-        )
-      )
+          Effect.provide(serviceLayer),
+        ),
+      );
 
-      res.json(result.right)
+      res.json(result.right);
     }
-  }
-}
+  };
+};
 
 /**
  * Router factory (will be used when we have service layer available)
  */
 export const createTokenRouter = (serviceLayer: Layer.Layer<RedisService | GoogleOAuthService | JWTService>) => {
-  router.post('/token', createTokenHandler(serviceLayer))
-  return router
-}
+  router.post('/token', createTokenHandler(serviceLayer));
+  return router;
+};
 
-export default router
+export default router;

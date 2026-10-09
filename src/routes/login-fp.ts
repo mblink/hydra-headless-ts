@@ -1,15 +1,15 @@
 /**
  * Functional login route using Effect
  */
-import { Effect, pipe } from 'effect'
-import express from 'express'
-import { type AppError } from '../fp/errors.js'
-import { processLogin } from '../fp/services/login.js'
-import type { HydraService } from '../fp/services/hydra.js'
+import { Effect, pipe } from 'effect';
+import express from 'express';
+import { type AppError } from '../fp/errors.js';
+import { processLogin } from '../fp/services/login.js';
+import type { HydraService } from '../fp/services/hydra.js';
 import type { Layer } from 'effect';
 
-const router = express.Router()
-const SUBJECT_PLACEHOLDER = 'claude@claude.ai'
+const router = express.Router();
+const SUBJECT_PLACEHOLDER = 'claude@claude.ai';
 
 /**
  * Map application errors to HTTP responses
@@ -17,20 +17,20 @@ const SUBJECT_PLACEHOLDER = 'claude@claude.ai'
 const mapErrorToHttp = (error: AppError): { status: number; message: string } => {
   switch (error._tag) {
     case 'HttpStatusError':
-      return { status: error.status, message: error.statusText }
+      return { status: error.status, message: error.statusText };
     case 'NetworkError':
-      return { status: 500, message: 'Network error communicating with Hydra' }
+      return { status: 500, message: 'Network error communicating with Hydra' };
     default:
-      return { status: 500, message: 'Internal server error' }
+      return { status: 500, message: 'Internal server error' };
   }
-}
+};
 
 /**
  * Login handler factory
  */
 const createLoginHandler = (serviceLayer: Layer.Layer<HydraService>) => {
   return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const challenge = String(req.query.login_challenge ?? req.body.challenge)
+    const challenge = String(req.query.login_challenge ?? req.body.challenge);
 
     // Log entry point
     await Effect.runPromise(
@@ -52,9 +52,9 @@ const createLoginHandler = (serviceLayer: Layer.Layer<HydraService>) => {
           ip: req.ip,
           timestamp: new Date().toISOString(),
         }),
-        Effect.provide(serviceLayer)
-      )
-    )
+        Effect.provide(serviceLayer),
+      ),
+    );
 
     if (!challenge) {
       await Effect.runPromise(
@@ -64,11 +64,11 @@ const createLoginHandler = (serviceLayer: Layer.Layer<HydraService>) => {
             body: req.body,
             timestamp: new Date().toISOString(),
           }),
-          Effect.provide(serviceLayer)
-        )
-      )
-      next(new Error('Expected a login challenge to be set but received none.'))
-      return
+          Effect.provide(serviceLayer),
+        ),
+      );
+      next(new Error('Expected a login challenge to be set but received none.'));
+      return;
     }
 
     const program = pipe(
@@ -76,16 +76,16 @@ const createLoginHandler = (serviceLayer: Layer.Layer<HydraService>) => {
         Effect.annotateLogs({
           challenge_preview: `${challenge.substring(0, 20)}...`,
           subject: SUBJECT_PLACEHOLDER,
-        })
+        }),
       ),
       Effect.andThen(() => processLogin(challenge, SUBJECT_PLACEHOLDER)),
-      Effect.provide(serviceLayer)
-    )
+      Effect.provide(serviceLayer),
+    );
 
-    const result = await Effect.runPromise(Effect.either(program))
+    const result = await Effect.runPromise(Effect.either(program));
 
     if (result._tag === 'Left') {
-      const { status, message } = mapErrorToHttp(result.left)
+      const { status, message } = mapErrorToHttp(result.left);
 
       await Effect.runPromise(
         Effect.logError('=== LOGIN ERROR ===').pipe(
@@ -97,11 +97,11 @@ const createLoginHandler = (serviceLayer: Layer.Layer<HydraService>) => {
             challenge_preview: `${challenge.substring(0, 20)}...`,
             timestamp: new Date().toISOString(),
           }),
-          Effect.provide(serviceLayer)
-        )
-      )
+          Effect.provide(serviceLayer),
+        ),
+      );
 
-      res.status(status).send(message)
+      res.status(status).send(message);
     } else {
       await Effect.runPromise(
         Effect.logInfo('=== LOGIN SUCCESS ===').pipe(
@@ -110,25 +110,25 @@ const createLoginHandler = (serviceLayer: Layer.Layer<HydraService>) => {
             challenge_preview: `${challenge.substring(0, 20)}...`,
             timestamp: new Date().toISOString(),
           }),
-          Effect.provide(serviceLayer)
-        )
-      )
+          Effect.provide(serviceLayer),
+        ),
+      );
 
-      res.redirect(result.right)
+      res.redirect(result.right);
     }
-  }
-}
+  };
+};
 
 /**
  * Create login router with service layer
  */
 export const createLoginRouter = (serviceLayer: Layer.Layer<HydraService>) => {
-  const handler = createLoginHandler(serviceLayer)
+  const handler = createLoginHandler(serviceLayer);
 
-  router.get('/', handler)
-  router.post('/', handler)
+  router.get('/', handler);
+  router.post('/', handler);
 
-  return router
-}
+  return router;
+};
 
-export default router
+export default router;

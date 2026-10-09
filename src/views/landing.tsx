@@ -1,5 +1,5 @@
-import Html from '@kitajs/html'
-import { Layout } from './components/Layout.js'
+import Html from '@kitajs/html';
+import { Layout } from './components/Layout.js';
 
 /**
  * OAuth2 Authorization Server Landing Page
@@ -28,7 +28,7 @@ import { Layout } from './components/Layout.js'
  */
 export interface IndexProps {
   /** Page title */
-  title?: string
+  title?: string;
 }
 
 export function Index({ title = 'OAuth 2.0 & OpenID Connect' }: IndexProps): string {
@@ -37,15 +37,12 @@ export function Index({ title = 'OAuth 2.0 & OpenID Connect' }: IndexProps): str
     children: (
       <>
         <h1>{title}</h1>
+        <p>This is the login & consent provider for the OAuth 2.0 Authorization Server powered by Ory Hydra.</p>
         <p>
-          This is the login & consent provider for the OAuth 2.0 Authorization Server powered by
-          Ory Hydra.
-        </p>
-        <p>
-          <strong>Architecture:</strong> Bridges Hydra (with DCR support) and Google OAuth (without
-          DCR support) using a functional, type-safe Effect-ts implementation.
+          <strong>Architecture:</strong> Bridges Hydra (with DCR support) and Google OAuth (without DCR support) using a
+          functional, type-safe Effect-ts implementation.
         </p>
       </>
     ),
-  })
+  });
 }

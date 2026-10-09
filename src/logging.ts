@@ -17,4 +17,4 @@
  */
 
 // Re-export for backwards compatibility
-export { syncLogger as default, accessLogStream } from './logging-effect.js'
+export { syncLogger as default, accessLogStream } from './logging-effect.js';
