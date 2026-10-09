@@ -3,31 +3,31 @@
  * Generates and verifies JWTs for OAuth2 token responses
  * Fetches signing keys from Hydra's JWKS endpoint
  */
-import { Effect, Context, Layer } from 'effect'
-import { SignJWT, jwtVerify, importJWK, createRemoteJWKSet, type JWTPayload, type JWK } from 'jose'
-import axios from 'axios'
-import crypto from 'crypto'
-import { ParseError, NetworkError, type AppError } from '../errors.js'
-import { syncLogger } from '../../logging-effect.js'
+import { Effect, Context, Layer } from 'effect';
+import { SignJWT, jwtVerify, importJWK, createRemoteJWKSet, type JWTPayload, type JWK } from 'jose';
+import axios from 'axios';
+import crypto from 'crypto';
+import { ParseError, NetworkError, type AppError } from '../errors.js';
+import { syncLogger } from '../../logging-effect.js';
 
 /**
  * JWT Claims structure
  */
 interface JWTClaims extends JWTPayload {
-  sub: string // Subject (user ID)
-  scope: string // Space-separated scopes
-  client_id: string // OAuth2 client ID
-  jti: string // JWT ID (unique identifier for this token)
-  kid?: string // Key ID (identifies which key was used to sign)
-  iat: number // Issued at
-  exp: number // Expiration time
+  sub: string; // Subject (user ID)
+  scope: string; // Space-separated scopes
+  client_id: string; // OAuth2 client ID
+  jti: string; // JWT ID (unique identifier for this token)
+  kid?: string; // Key ID (identifies which key was used to sign)
+  iat: number; // Issued at
+  exp: number; // Expiration time
 }
 
 /**
  * JWKS (JSON Web Key Set) structure from Hydra
  */
 export interface JWKS {
-  keys: JWK[]
+  keys: JWK[];
 }
 
 /**
@@ -35,16 +35,16 @@ export interface JWKS {
  * From Hydra admin API /admin/keys/{set}
  */
 interface HydraJWKSResponse {
-  keys: JWK[]
+  keys: JWK[];
 }
 
 /**
  * Key with metadata from Hydra
  */
 interface HydraKey {
-  kid: string
-  privateKey: CryptoKey
-  publicJWK: JWK
+  kid: string;
+  privateKey: CryptoKey;
+  publicJWK: JWK;
 }
 
 /**
@@ -58,44 +58,44 @@ export interface JWTService {
   readonly sign: (
     claims: Omit<JWTClaims, 'iat' | 'exp' | 'kid'>,
     expiresIn: number, // Expiration in seconds
-    googleIdToken?: string // Optional Google ID token (used in Google mode)
-  ) => Effect.Effect<string, AppError>
+    googleIdToken?: string, // Optional Google ID token (used in Google mode)
+  ) => Effect.Effect<string, AppError>;
 
   /**
    * Verify and decode a JWT
    */
-  readonly verify: (token: string) => Effect.Effect<JWTClaims, AppError>
+  readonly verify: (token: string) => Effect.Effect<JWTClaims, AppError>;
 
   /**
    * Generate a unique JWT ID
    */
-  readonly generateJti: () => Effect.Effect<string>
+  readonly generateJti: () => Effect.Effect<string>;
 
   /**
    * Get JWKS (JSON Web Key Set) for public key distribution
    */
-  readonly getJWKS: () => Effect.Effect<JWKS, AppError>
+  readonly getJWKS: () => Effect.Effect<JWKS, AppError>;
 }
 
 /**
  * JWT Service tag
  */
-export const JWTService = Context.GenericTag<JWTService>('JWTService')
+export const JWTService = Context.GenericTag<JWTService>('JWTService');
 
 /**
  * JWT Provider type
  */
-type JWTProvider = 'hydra' | 'google'
+type JWTProvider = 'hydra' | 'google';
 
 /**
  * JWT Service configuration
  */
 export interface JWTConfig {
-  provider: JWTProvider // JWT signing provider ('hydra' or 'google')
-  issuer: string // Token issuer (usually the application URL)
-  audience: string // Token audience (usually the client application)
-  hydraPublicUrl: string // Hydra public URL for JWKS endpoint
-  hydraAdminUrl: string // Hydra admin URL for fetching keys
+  provider: JWTProvider; // JWT signing provider ('hydra' or 'google')
+  issuer: string; // Token issuer (usually the application URL)
+  audience: string; // Token audience (usually the client application)
+  hydraPublicUrl: string; // Hydra public URL for JWKS endpoint
+  hydraAdminUrl: string; // Hydra admin URL for fetching keys
 }
 
 /**
@@ -106,97 +106,94 @@ const fetchHydraKey = async (hydraAdminUrl: string): Promise<HydraKey> => {
   try {
     // Fetch from Hydra's admin API for the JWT access token key set
     // This endpoint returns keys including private keys for signing
-    const response = await axios.get<HydraJWKSResponse>(
-      `${hydraAdminUrl}/admin/keys/hydra.jwt.access-token`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    )
+    const response = await axios.get<HydraJWKSResponse>(`${hydraAdminUrl}/admin/keys/hydra.jwt.access-token`, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
     if (!response.data?.keys || response.data.keys.length === 0) {
-      throw new Error('No keys returned from Hydra')
+      throw new Error('No keys returned from Hydra');
     }
 
     // Use the first key (Hydra typically has one active key)
-    const jwk = response.data.keys[0]
+    const jwk = response.data.keys[0];
 
     if (!jwk.kid) {
-      throw new Error('Key missing kid field')
+      throw new Error('Key missing kid field');
     }
 
     // Import the private key from JWK
-    const privateKey = await importJWK(jwk, jwk.alg || 'RS256')
+    const privateKey = await importJWK(jwk, jwk.alg || 'RS256');
 
     // Ensure we got a CryptoKey (not Uint8Array)
     if (!(privateKey instanceof CryptoKey)) {
-      throw new Error('Expected CryptoKey from importJWK')
+      throw new Error('Expected CryptoKey from importJWK');
     }
 
     syncLogger.info('Fetched signing key from Hydra', {
       kid: jwk.kid,
       alg: jwk.alg,
       use: jwk.use,
-    })
+    });
 
     return {
       kid: jwk.kid,
       privateKey,
       publicJWK: jwk,
-    }
+    };
   } catch (error) {
     syncLogger.error('Failed to fetch key from Hydra', {
       hydraAdminUrl,
       error: String(error),
-    })
-    throw error
+    });
+    throw error;
   }
-}
+};
 
 /**
  * Create JWT Service implementation
  */
 export const makeJWTService = (config: JWTConfig): JWTService => {
   // Only fetch keys for Hydra mode (Google mode doesn't need keys for signing)
-  let keyPromise: Promise<HydraKey> | null = null
-  let cachedKey: HydraKey | null = null
+  let keyPromise: Promise<HydraKey> | null = null;
+  let cachedKey: HydraKey | null = null;
 
   const getKey = async (): Promise<HydraKey> => {
     // In Google mode, we don't sign JWTs, so we don't need signing keys
     if (config.provider === 'google') {
-      throw new Error('getKey() should not be called in Google mode')
+      throw new Error('getKey() should not be called in Google mode');
     }
 
     if (cachedKey) {
-      return cachedKey
+      return cachedKey;
     }
 
-    keyPromise ??= fetchHydraKey(config.hydraAdminUrl)
+    keyPromise ??= fetchHydraKey(config.hydraAdminUrl);
 
-    cachedKey = await keyPromise
+    cachedKey = await keyPromise;
     syncLogger.info(`JWT service initialized with ${config.provider} key`, {
       provider: config.provider,
       kid: cachedKey.kid,
       issuer: config.issuer,
       jwksUrl: `${config.hydraPublicUrl}/.well-known/jwks.json`,
-    })
+    });
 
-    return cachedKey
-  }
+    return cachedKey;
+  };
 
   // Initialize key eagerly only for Hydra mode
   if (config.provider === 'hydra') {
     getKey().catch((error) => {
-      syncLogger.error(`Failed to fetch JWT key from ${config.provider}`, { error })
-    })
+      syncLogger.error(`Failed to fetch JWT key from ${config.provider}`, { error });
+    });
   } else {
     syncLogger.info('JWT service initialized in Google mode', {
       provider: config.provider,
       issuer: config.issuer,
       jwksUrl: 'https://www.googleapis.com/oauth2/v3/certs',
       note: 'Will return Google ID tokens directly without signing',
-    })
+    });
   }
 
   return {
@@ -206,7 +203,7 @@ export const makeJWTService = (config: JWTConfig): JWTService => {
           // Google mode: Return Google's ID token directly
           if (config.provider === 'google') {
             if (!googleIdToken) {
-              throw new Error('Google ID token required when JWT_PROVIDER=google')
+              throw new Error('Google ID token required when JWT_PROVIDER=google');
             }
 
             syncLogger.debug('Returning Google ID token', {
@@ -214,14 +211,14 @@ export const makeJWTService = (config: JWTConfig): JWTService => {
               client_id: claims.client_id,
               jti: claims.jti,
               provider: 'google',
-            })
+            });
 
-            return googleIdToken
+            return googleIdToken;
           }
 
           // Hydra mode: Sign our own JWT
-          const key = await getKey()
-          const now = Math.floor(Date.now() / 1000)
+          const key = await getKey();
+          const now = Math.floor(Date.now() / 1000);
 
           const jwt = await new SignJWT({
             ...claims,
@@ -236,16 +233,16 @@ export const makeJWTService = (config: JWTConfig): JWTService => {
             })
             .setIssuer(config.issuer)
             .setAudience(config.audience)
-            .sign(key.privateKey)
+            .sign(key.privateKey);
 
           syncLogger.debug('JWT signed with Hydra key', {
             kid: key.kid,
             sub: claims.sub,
             client_id: claims.client_id,
             jti: claims.jti,
-          })
+          });
 
-          return jwt
+          return jwt;
         },
         catch: (error) =>
           new ParseError({
@@ -260,21 +257,21 @@ export const makeJWTService = (config: JWTConfig): JWTService => {
           const jwksUrl =
             config.provider === 'google'
               ? 'https://www.googleapis.com/oauth2/v3/certs'
-              : `${config.hydraPublicUrl}/.well-known/jwks.json`
+              : `${config.hydraPublicUrl}/.well-known/jwks.json`;
 
-          const JWKS = createRemoteJWKSet(new URL(jwksUrl))
+          const JWKS = createRemoteJWKSet(new URL(jwksUrl));
 
           const { payload } = await jwtVerify(token, JWKS, {
             issuer: config.issuer,
             audience: config.audience,
-          })
+          });
 
           // Validate required claims
           if (!payload.sub || !payload.jti || !payload.client_id) {
-            throw new Error('Missing required claims in JWT')
+            throw new Error('Missing required claims in JWT');
           }
 
-          return payload as JWTClaims
+          return payload as JWTClaims;
         },
         catch: (error) =>
           new ParseError({
@@ -291,22 +288,21 @@ export const makeJWTService = (config: JWTConfig): JWTService => {
           const jwksUrl =
             config.provider === 'google'
               ? 'https://www.googleapis.com/oauth2/v3/certs'
-              : `${config.hydraPublicUrl}/.well-known/jwks.json`
+              : `${config.hydraPublicUrl}/.well-known/jwks.json`;
 
-          const response = await axios.get<JWKS>(jwksUrl)
+          const response = await axios.get<JWKS>(jwksUrl);
 
-          return response.data
+          return response.data;
         },
         catch: (error) =>
           new ParseError({
             message: `Failed to fetch JWKS from ${config.provider}: ${String(error)}`,
           }),
       }),
-  }
-}
+  };
+};
 
 /**
  * Create a Layer for JWTService
  */
-export const JWTServiceLive = (config: JWTConfig) =>
-  Layer.succeed(JWTService, makeJWTService(config))
+export const JWTServiceLive = (config: JWTConfig) => Layer.succeed(JWTService, makeJWTService(config));

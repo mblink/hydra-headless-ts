@@ -1,5 +1,5 @@
-import { doubleCsrf, type CsrfTokenGenerator } from 'csrf-csrf'
-import { appConfig } from '../config.js'
+import { doubleCsrf, type CsrfTokenGenerator } from 'csrf-csrf';
+import { appConfig } from '../config.js';
 
 const { doubleCsrfProtection, generateCsrfToken: generateBoundCsrfToken } = doubleCsrf({
   getSecret: () => appConfig.security.cookieSecret,
@@ -11,24 +11,22 @@ const { doubleCsrfProtection, generateCsrfToken: generateBoundCsrfToken } = doub
     maxAge: 30 * 24 * 60 * 60 * 1000,
   },
   getSessionIdentifier: (req) => {
-    return req.session.id
+    return req.session.id;
   },
   // Forms submit the token in a hidden field named after xsrfHeaderName (see views/*.tsx);
   // also accept the library's default header for non-form clients
   getCsrfTokenFromRequest: (req) => {
-    const fromForm = (req.body as Record<string, unknown> | undefined)?.[
-      appConfig.security.xsrfHeaderName
-    ]
+    const fromForm = (req.body as Record<string, unknown> | undefined)?.[appConfig.security.xsrfHeaderName];
     if (typeof fromForm === 'string') {
-      return fromForm
+      return fromForm;
     }
     // A repeated header arrives as string[]; treat it as missing so validation fails cleanly
-    const fromHeader = req.headers['x-csrf-token']
-    return typeof fromHeader === 'string' ? fromHeader : undefined
+    const fromHeader = req.headers['x-csrf-token'];
+    return typeof fromHeader === 'string' ? fromHeader : undefined;
   },
   // CSRF protection is applied selectively to routes with forms (logout, device/verify)
   // All other routes (including POST /) are not protected
-})
+});
 
 /**
  * Generate a CSRF token bound to the current session.
@@ -38,8 +36,8 @@ const { doubleCsrfProtection, generateCsrfToken: generateBoundCsrfToken } = doub
  * and fail validation. Writing to the session here makes express-session persist it.
  */
 const generateCsrfToken: CsrfTokenGenerator = (req, res, options) => {
-  req.session.csrfIssuedAt = Date.now()
-  return generateBoundCsrfToken(req, res, options)
-}
+  req.session.csrfIssuedAt = Date.now();
+  return generateBoundCsrfToken(req, res, options);
+};
 
-export { doubleCsrfProtection, generateCsrfToken }
+export { doubleCsrfProtection, generateCsrfToken };

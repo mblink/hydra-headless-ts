@@ -2,9 +2,9 @@
  * Local OAuth2 API implementation using Effect
  * Converts @ory/client-fetch OAuth2Api calls to Effect-based operations
  */
-import { Effect, Context, Layer } from 'effect'
-import { HttpStatusError, NetworkError } from '../fp/errors.js'
-import type { HttpError } from '../fp/errors.js'
+import { Effect, Context, Layer } from 'effect';
+import { HttpStatusError, NetworkError } from '../fp/errors.js';
+import type { HttpError } from '../fp/errors.js';
 import type {
   AcceptDeviceUserCodeRequest,
   AcceptOAuth2ConsentRequest,
@@ -24,15 +24,15 @@ import type {
   RejectOAuth2Request,
   TrustOAuth2JwtGrantIssuer,
   TrustedOAuth2JwtGrantIssuer,
-} from '@ory/client-fetch'
+} from '@ory/client-fetch';
 
 /**
  * Configuration for OAuth2 API
  */
 export interface OAuth2ApiConfig {
-  basePath: string
-  headers?: Record<string, string>
-  accessToken?: string | ((name: string, scopes?: string[]) => string | Promise<string>)
+  basePath: string;
+  headers?: Record<string, string>;
+  accessToken?: string | ((name: string, scopes?: string[]) => string | Promise<string>);
 }
 
 /**
@@ -41,31 +41,31 @@ export interface OAuth2ApiConfig {
 const wrapFetch = <A>(
   operation: () => Promise<Response>,
   operationName: string,
-  parseResponse: (response: Response) => Promise<A>
+  parseResponse: (response: Response) => Promise<A>,
 ): Effect.Effect<A, HttpError> =>
   Effect.tryPromise({
     try: async () => {
-      const response = await operation()
+      const response = await operation();
       if (!response.ok) {
-        const body = await response.text().catch(() => '')
+        const body = await response.text().catch(() => '');
         throw new HttpStatusError({
           status: response.status,
           statusText: response.statusText,
           body,
-        })
+        });
       }
-      return await parseResponse(response)
+      return await parseResponse(response);
     },
     catch: (error): HttpError => {
       if (error instanceof HttpStatusError) {
-        return error
+        return error;
       }
       return new NetworkError({
         message: `OAuth2 ${operationName} failed`,
         cause: error,
-      })
+      });
     },
-  })
+  });
 
 /**
  * OAuth2 API Service interface
@@ -74,151 +74,130 @@ export interface OAuth2ApiService {
   // Consent requests
   readonly acceptConsentRequest: (
     consentChallenge: string,
-    body?: AcceptOAuth2ConsentRequest
-  ) => Effect.Effect<OAuth2RedirectTo, HttpError>
+    body?: AcceptOAuth2ConsentRequest,
+  ) => Effect.Effect<OAuth2RedirectTo, HttpError>;
 
-  readonly getConsentRequest: (
-    consentChallenge: string
-  ) => Effect.Effect<OAuth2ConsentRequest, HttpError>
+  readonly getConsentRequest: (consentChallenge: string) => Effect.Effect<OAuth2ConsentRequest, HttpError>;
 
   readonly rejectConsentRequest: (
     consentChallenge: string,
-    body?: RejectOAuth2Request
-  ) => Effect.Effect<OAuth2RedirectTo, HttpError>
+    body?: RejectOAuth2Request,
+  ) => Effect.Effect<OAuth2RedirectTo, HttpError>;
 
   // Login requests
   readonly acceptLoginRequest: (
     loginChallenge: string,
-    body?: AcceptOAuth2LoginRequest
-  ) => Effect.Effect<OAuth2RedirectTo, HttpError>
+    body?: AcceptOAuth2LoginRequest,
+  ) => Effect.Effect<OAuth2RedirectTo, HttpError>;
 
-  readonly getLoginRequest: (loginChallenge: string) => Effect.Effect<OAuth2LoginRequest, HttpError>
+  readonly getLoginRequest: (loginChallenge: string) => Effect.Effect<OAuth2LoginRequest, HttpError>;
 
   readonly rejectLoginRequest: (
     loginChallenge: string,
-    body?: RejectOAuth2Request
-  ) => Effect.Effect<OAuth2RedirectTo, HttpError>
+    body?: RejectOAuth2Request,
+  ) => Effect.Effect<OAuth2RedirectTo, HttpError>;
 
   // Logout requests
-  readonly acceptLogoutRequest: (
-    logoutChallenge: string
-  ) => Effect.Effect<OAuth2RedirectTo, HttpError>
+  readonly acceptLogoutRequest: (logoutChallenge: string) => Effect.Effect<OAuth2RedirectTo, HttpError>;
 
-  readonly getLogoutRequest: (
-    logoutChallenge: string
-  ) => Effect.Effect<OAuth2LogoutRequest, HttpError>
+  readonly getLogoutRequest: (logoutChallenge: string) => Effect.Effect<OAuth2LogoutRequest, HttpError>;
 
-  readonly rejectLogoutRequest: (logoutChallenge: string) => Effect.Effect<void, HttpError>
+  readonly rejectLogoutRequest: (logoutChallenge: string) => Effect.Effect<void, HttpError>;
 
   // Device flow
   readonly acceptUserCodeRequest: (
     deviceChallenge: string,
-    body?: AcceptDeviceUserCodeRequest
-  ) => Effect.Effect<OAuth2RedirectTo, HttpError>
+    body?: AcceptDeviceUserCodeRequest,
+  ) => Effect.Effect<OAuth2RedirectTo, HttpError>;
 
-  readonly deviceFlow: () => Effect.Effect<DeviceAuthorization, HttpError>
+  readonly deviceFlow: () => Effect.Effect<DeviceAuthorization, HttpError>;
 
-  readonly performDeviceVerificationFlow: () => Effect.Effect<ErrorOAuth2, HttpError>
+  readonly performDeviceVerificationFlow: () => Effect.Effect<ErrorOAuth2, HttpError>;
 
   // Client management
-  readonly createClient: (client: OAuth2Client) => Effect.Effect<OAuth2Client, HttpError>
+  readonly createClient: (client: OAuth2Client) => Effect.Effect<OAuth2Client, HttpError>;
 
-  readonly getClient: (id: string) => Effect.Effect<OAuth2Client, HttpError>
+  readonly getClient: (id: string) => Effect.Effect<OAuth2Client, HttpError>;
 
   readonly listClients: (params?: {
-    pageSize?: number
-    pageToken?: string
-    clientName?: string
-    owner?: string
-  }) => Effect.Effect<OAuth2Client[], HttpError>
+    pageSize?: number;
+    pageToken?: string;
+    clientName?: string;
+    owner?: string;
+  }) => Effect.Effect<OAuth2Client[], HttpError>;
 
-  readonly updateClient: (
-    id: string,
-    client: OAuth2Client
-  ) => Effect.Effect<OAuth2Client, HttpError>
+  readonly updateClient: (id: string, client: OAuth2Client) => Effect.Effect<OAuth2Client, HttpError>;
 
-  readonly patchClient: (id: string, patches: JsonPatch[]) => Effect.Effect<OAuth2Client, HttpError>
+  readonly patchClient: (id: string, patches: JsonPatch[]) => Effect.Effect<OAuth2Client, HttpError>;
 
-  readonly deleteClient: (id: string) => Effect.Effect<void, HttpError>
+  readonly deleteClient: (id: string) => Effect.Effect<void, HttpError>;
 
   readonly setClientLifespans: (
     id: string,
-    lifespans?: OAuth2ClientTokenLifespans
-  ) => Effect.Effect<OAuth2Client, HttpError>
+    lifespans?: OAuth2ClientTokenLifespans,
+  ) => Effect.Effect<OAuth2Client, HttpError>;
 
   // Token management
-  readonly introspectToken: (
-    token: string,
-    scope?: string
-  ) => Effect.Effect<IntrospectedOAuth2Token, HttpError>
+  readonly introspectToken: (token: string, scope?: string) => Effect.Effect<IntrospectedOAuth2Token, HttpError>;
 
-  readonly revokeToken: (
-    token: string,
-    clientId?: string,
-    clientSecret?: string
-  ) => Effect.Effect<void, HttpError>
+  readonly revokeToken: (token: string, clientId?: string, clientSecret?: string) => Effect.Effect<void, HttpError>;
 
-  readonly deleteTokens: (clientId: string) => Effect.Effect<void, HttpError>
+  readonly deleteTokens: (clientId: string) => Effect.Effect<void, HttpError>;
 
   readonly tokenExchange: (params: {
-    grantType: string
-    clientId?: string
-    code?: string
-    redirectUri?: string
-    refreshToken?: string
-  }) => Effect.Effect<OAuth2TokenExchange, HttpError>
+    grantType: string;
+    clientId?: string;
+    code?: string;
+    redirectUri?: string;
+    refreshToken?: string;
+  }) => Effect.Effect<OAuth2TokenExchange, HttpError>;
 
   // Session management
   readonly listConsentSessions: (params: {
-    subject: string
-    pageSize?: number
-    pageToken?: string
-    loginSessionId?: string
-  }) => Effect.Effect<OAuth2ConsentSession[], HttpError>
+    subject: string;
+    pageSize?: number;
+    pageToken?: string;
+    loginSessionId?: string;
+  }) => Effect.Effect<OAuth2ConsentSession[], HttpError>;
 
   readonly revokeConsentSessions: (params?: {
-    subject?: string
-    client?: string
-    consentRequestId?: string
-    all?: boolean
-  }) => Effect.Effect<void, HttpError>
+    subject?: string;
+    client?: string;
+    consentRequestId?: string;
+    all?: boolean;
+  }) => Effect.Effect<void, HttpError>;
 
-  readonly revokeLoginSessions: (params?: {
-    subject?: string
-    sid?: string
-  }) => Effect.Effect<void, HttpError>
+  readonly revokeLoginSessions: (params?: { subject?: string; sid?: string }) => Effect.Effect<void, HttpError>;
 
   // JWT Grant issuers
   readonly trustJwtGrantIssuer: (
-    issuer?: TrustOAuth2JwtGrantIssuer
-  ) => Effect.Effect<TrustedOAuth2JwtGrantIssuer, HttpError>
+    issuer?: TrustOAuth2JwtGrantIssuer,
+  ) => Effect.Effect<TrustedOAuth2JwtGrantIssuer, HttpError>;
 
-  readonly getTrustedJwtGrantIssuer: (
-    id: string
-  ) => Effect.Effect<TrustedOAuth2JwtGrantIssuer, HttpError>
+  readonly getTrustedJwtGrantIssuer: (id: string) => Effect.Effect<TrustedOAuth2JwtGrantIssuer, HttpError>;
 
   readonly listTrustedJwtGrantIssuers: (params?: {
-    pageSize?: number
-    pageToken?: string
-    issuer?: string
-  }) => Effect.Effect<TrustedOAuth2JwtGrantIssuer[], HttpError>
+    pageSize?: number;
+    pageToken?: string;
+    issuer?: string;
+  }) => Effect.Effect<TrustedOAuth2JwtGrantIssuer[], HttpError>;
 
-  readonly deleteTrustedJwtGrantIssuer: (id: string) => Effect.Effect<void, HttpError>
+  readonly deleteTrustedJwtGrantIssuer: (id: string) => Effect.Effect<void, HttpError>;
 
   // Authorization endpoints
-  readonly authorize: () => Effect.Effect<ErrorOAuth2, HttpError>
+  readonly authorize: () => Effect.Effect<ErrorOAuth2, HttpError>;
 }
 
 /**
  * OAuth2 API Service tag
  */
-export const OAuth2ApiService = Context.GenericTag<OAuth2ApiService>('OAuth2ApiService')
+export const OAuth2ApiService = Context.GenericTag<OAuth2ApiService>('OAuth2ApiService');
 
 /**
  * Create OAuth2 API service implementation
  */
 const makeOAuth2ApiService = (config: OAuth2ApiConfig): OAuth2ApiService => {
-  const baseUrl = config.basePath
+  const baseUrl = config.basePath;
 
   /**
    * Helper to build headers with auth token
@@ -226,39 +205,37 @@ const makeOAuth2ApiService = (config: OAuth2ApiConfig): OAuth2ApiService => {
   const buildHeaders = async (contentType?: string): Promise<Record<string, string>> => {
     const headers: Record<string, string> = {
       ...config.headers,
-    }
+    };
 
     if (contentType) {
-      headers['Content-Type'] = contentType
+      headers['Content-Type'] = contentType;
     }
 
     if (config.accessToken) {
       const token =
-        typeof config.accessToken === 'function'
-          ? await config.accessToken('oryAccessToken', [])
-          : config.accessToken
+        typeof config.accessToken === 'function' ? await config.accessToken('oryAccessToken', []) : config.accessToken;
       if (token) {
-        headers['Authorization'] = `Bearer ${token}`
+        headers['Authorization'] = `Bearer ${token}`;
       }
     }
 
-    return headers
-  }
+    return headers;
+  };
 
   /**
    * Helper to build URL with query params
    */
   const buildUrl = (path: string, params?: Record<string, any>): string => {
-    const url = new URL(path, baseUrl)
+    const url = new URL(path, baseUrl);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
-          url.searchParams.append(key, String(value))
+          url.searchParams.append(key, String(value));
         }
-      })
+      });
     }
-    return url.toString()
-  }
+    return url.toString();
+  };
 
   /**
    * Generic fetch wrapper
@@ -267,28 +244,28 @@ const makeOAuth2ApiService = (config: OAuth2ApiConfig): OAuth2ApiService => {
     method: string,
     path: string,
     options?: {
-      query?: Record<string, any>
-      body?: any
-      contentType?: string
-    }
+      query?: Record<string, any>;
+      body?: any;
+      contentType?: string;
+    },
   ): Effect.Effect<A, HttpError> =>
     wrapFetch(
       async () => {
-        const headers = await buildHeaders(options?.contentType ?? 'application/json')
-        const url = buildUrl(path, options?.query)
+        const headers = await buildHeaders(options?.contentType ?? 'application/json');
+        const url = buildUrl(path, options?.query);
 
         return fetch(url, {
           method,
           headers,
           body: options?.body ? JSON.stringify(options.body) : undefined,
-        })
+        });
       },
       `${method} ${path}`,
       async (response) => {
-        const text = await response.text()
-        return text ? JSON.parse(text) : undefined
-      }
-    )
+        const text = await response.text();
+        return text ? JSON.parse(text) : undefined;
+      },
+    );
 
   /**
    * Fetch with no response body
@@ -297,49 +274,45 @@ const makeOAuth2ApiService = (config: OAuth2ApiConfig): OAuth2ApiService => {
     method: string,
     path: string,
     options?: {
-      query?: Record<string, any>
-      body?: any
-      contentType?: string
-    }
+      query?: Record<string, any>;
+      body?: any;
+      contentType?: string;
+    },
   ): Effect.Effect<void, HttpError> =>
     wrapFetch(
       async () => {
-        const headers = await buildHeaders(options?.contentType)
-        const url = buildUrl(path, options?.query)
+        const headers = await buildHeaders(options?.contentType);
+        const url = buildUrl(path, options?.query);
 
         return fetch(url, {
           method,
           headers,
           body: options?.body ? JSON.stringify(options.body) : undefined,
-        })
+        });
       },
       `${method} ${path}`,
-      async () => undefined
-    )
+      async () => undefined,
+    );
 
   /**
    * Fetch with form data
    */
-  const fetchForm = <A>(
-    method: string,
-    path: string,
-    formData: Record<string, string>
-  ): Effect.Effect<A, HttpError> =>
+  const fetchForm = <A>(method: string, path: string, formData: Record<string, string>): Effect.Effect<A, HttpError> =>
     wrapFetch(
       async () => {
-        const headers = await buildHeaders('application/x-www-form-urlencoded')
-        const url = buildUrl(path)
-        const body = new URLSearchParams(formData).toString()
+        const headers = await buildHeaders('application/x-www-form-urlencoded');
+        const url = buildUrl(path);
+        const body = new URLSearchParams(formData).toString();
 
         return fetch(url, {
           method,
           headers,
           body,
-        })
+        });
       },
       `${method} ${path}`,
-      async (response) => response.json()
-    )
+      async (response) => response.json(),
+    );
 
   return {
     // Consent requests
@@ -422,11 +395,9 @@ const makeOAuth2ApiService = (config: OAuth2ApiConfig): OAuth2ApiService => {
           : undefined,
       }),
 
-    updateClient: (id, client) =>
-      fetchJSON<OAuth2Client>('PUT', `/admin/clients/${id}`, { body: client }),
+    updateClient: (id, client) => fetchJSON<OAuth2Client>('PUT', `/admin/clients/${id}`, { body: client }),
 
-    patchClient: (id, patches) =>
-      fetchJSON<OAuth2Client>('PATCH', `/admin/clients/${id}`, { body: patches }),
+    patchClient: (id, patches) => fetchJSON<OAuth2Client>('PATCH', `/admin/clients/${id}`, { body: patches }),
 
     deleteClient: (id) => fetchVoid('DELETE', `/admin/clients/${id}`),
 
@@ -516,16 +487,15 @@ const makeOAuth2ApiService = (config: OAuth2ApiConfig): OAuth2ApiService => {
           : undefined,
       }),
 
-    deleteTrustedJwtGrantIssuer: (id) =>
-      fetchVoid('DELETE', `/admin/trust/grants/jwt-bearer/issuers/${id}`),
+    deleteTrustedJwtGrantIssuer: (id) => fetchVoid('DELETE', `/admin/trust/grants/jwt-bearer/issuers/${id}`),
 
     // Authorization endpoints
     authorize: () => fetchJSON<ErrorOAuth2>('GET', '/oauth2/auth'),
-  }
-}
+  };
+};
 
 /**
  * Create a Layer for OAuth2ApiService
  */
 export const OAuth2ApiServiceLive = (config: OAuth2ApiConfig) =>
-  Layer.succeed(OAuth2ApiService, makeOAuth2ApiService(config))
+  Layer.succeed(OAuth2ApiService, makeOAuth2ApiService(config));

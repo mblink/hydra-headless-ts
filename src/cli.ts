@@ -9,12 +9,12 @@
  *   npm run cli -- new-client <client-name>
  */
 
-import { Effect, Exit, Cause, Layer, Schema, Logger, pipe } from 'effect'
-import { type OAuth2ApiService, OAuth2ApiServiceLive } from './api/oauth2.js'
-import * as authFlow from './authFlow.js'
-import { appConfig } from './config.js'
-import { createLoggerLayer } from './fp/bootstrap.js'
-import { HttpStatusError, NetworkError, type ParseError } from './fp/errors.js'
+import { Effect, Exit, Cause, Layer, Schema, Logger, pipe } from 'effect';
+import { type OAuth2ApiService, OAuth2ApiServiceLive } from './api/oauth2.js';
+import * as authFlow from './authFlow.js';
+import { appConfig } from './config.js';
+import { createLoggerLayer } from './fp/bootstrap.js';
+import { HttpStatusError, NetworkError, type ParseError } from './fp/errors.js';
 
 /**
  * Setup OAuth2 API Layer with configuration
@@ -25,63 +25,57 @@ const setupLayer = () => {
     headers: {
       'Content-Type': 'application/json',
     },
-  }
+  };
 
-  return Layer.merge(createLoggerLayer(), OAuth2ApiServiceLive(oauth2Config))
-}
+  return Layer.merge(createLoggerLayer(), OAuth2ApiServiceLive(oauth2Config));
+};
 
 /**
  * Run an Effect program with the configured runtime
  */
-const runEffect = async <A, E>(
-  program: Effect.Effect<A, E, OAuth2ApiService>
-): Promise<Exit.Exit<A, E>> => {
-  const layer = setupLayer()
-  const runnable = Effect.provide(program, layer)
-  return Effect.runPromiseExit(runnable)
-}
+const runEffect = async <A, E>(program: Effect.Effect<A, E, OAuth2ApiService>): Promise<Exit.Exit<A, E>> => {
+  const layer = setupLayer();
+  const runnable = Effect.provide(program, layer);
+  return Effect.runPromiseExit(runnable);
+};
 
 interface FormattedHttpStatusError {
-  type: 'HttpStatusError'
-  status: number
-  statusText: string
-  body: unknown
+  type: 'HttpStatusError';
+  status: number;
+  statusText: string;
+  body: unknown;
 }
 
 interface FormattedNetworkError {
-  type: 'NetworkError'
-  message: string
-  cause: unknown
+  type: 'NetworkError';
+  message: string;
+  cause: unknown;
 }
 
 interface FormattedUnexpectedError {
-  type: 'UnexpectedError'
-  name: string
-  message: string
-  stack?: string
+  type: 'UnexpectedError';
+  name: string;
+  message: string;
+  stack?: string;
 }
 
 interface GenericError {
-  error: string
+  error: string;
 }
 
 interface GenericDefect {
-  defect: string
+  defect: string;
 }
 
 type FormattedError =
-  | FormattedHttpStatusError
-  | FormattedNetworkError
-  | FormattedUnexpectedError
-  | GenericError
-  | GenericDefect
+  FormattedHttpStatusError | FormattedNetworkError | FormattedUnexpectedError | GenericError | GenericDefect;
 
 /**
  * Pretty print an error cause
  */
 const formatError = (cause: Cause.Cause<unknown>): string => {
-  const failures = Cause.failures(cause)
-  const defects = Cause.defects(cause)
+  const failures = Cause.failures(cause);
+  const defects = Cause.defects(cause);
 
   const formatFailure = (failure: unknown): FormattedError => {
     if (failure instanceof HttpStatusError) {
@@ -90,20 +84,20 @@ const formatError = (cause: Cause.Cause<unknown>): string => {
         status: failure.status,
         statusText: failure.statusText,
         body: failure.body,
-      }
+      };
     }
     if (failure instanceof NetworkError) {
       return {
         type: 'NetworkError',
         message: failure.message,
         cause: failure.cause,
-      }
+      };
     }
     if (typeof failure === 'object' && failure !== null) {
-      return failure as FormattedError
+      return failure as FormattedError;
     }
-    return { error: String(failure) }
-  }
+    return { error: String(failure) };
+  };
 
   const formatDefect = (defect: unknown): FormattedError => {
     if (defect instanceof Error) {
@@ -112,15 +106,12 @@ const formatError = (cause: Cause.Cause<unknown>): string => {
         name: defect.name,
         message: defect.message,
         stack: defect.stack,
-      }
+      };
     }
-    return { defect: String(defect) }
-  }
+    return { defect: String(defect) };
+  };
 
-  const errors = [
-    ...Array.from(failures).map(formatFailure),
-    ...Array.from(defects).map(formatDefect),
-  ]
+  const errors = [...Array.from(failures).map(formatFailure), ...Array.from(defects).map(formatDefect)];
 
   if (errors.length === 0) {
     return JSON.stringify(
@@ -129,93 +120,93 @@ const formatError = (cause: Cause.Cause<unknown>): string => {
         cause: Cause.pretty(cause),
       },
       null,
-      2
-    )
+      2,
+    );
   }
 
-  return errors.length === 1 ? JSON.stringify(errors[0], null, 2) : JSON.stringify(errors, null, 2)
-}
+  return errors.length === 1 ? JSON.stringify(errors[0], null, 2) : JSON.stringify(errors, null, 2);
+};
 
 /**
  * Format and print result
  */
 const printResult = (exit: Exit.Exit<unknown, unknown>) => {
   if (Exit.isSuccess(exit)) {
-    Effect.logInfo('\nSuccess!')
-    Effect.logInfo(JSON.stringify(exit.value, null, 2))
+    Effect.logInfo('\nSuccess!');
+    Effect.logInfo(JSON.stringify(exit.value, null, 2));
   } else {
-    Effect.logError('\nError!')
-    Effect.logError(formatError(exit.cause))
-    process.exit(1)
+    Effect.logError('\nError!');
+    Effect.logError(formatError(exit.cause));
+    process.exit(1);
   }
-}
-const uuidRegexp = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/i
+};
+const uuidRegexp = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/i;
 /**
  * Command handlers
  */
-type CommandHandler = (...args: string[]) => Promise<void>
-const ClientIdV = pipe(Schema.NonEmptyString, Schema.pattern(uuidRegexp))
+type CommandHandler = (...args: string[]) => Promise<void>;
+const ClientIdV = pipe(Schema.NonEmptyString, Schema.pattern(uuidRegexp));
 
-type ClientIdV = Schema.Schema.Type<typeof ClientIdV>
+type ClientIdV = Schema.Schema.Type<typeof ClientIdV>;
 const parseClientId = (clientId: string): Effect.Effect<string, ParseError, never> => {
-  return Schema.decode(ClientIdV)(clientId)
-}
+  return Schema.decode(ClientIdV)(clientId);
+};
 
 const commands: Record<string, CommandHandler> = {
   'list-clients': async () => {
-    Effect.logInfo('Listing all OAuth2 clients...')
-    const program = authFlow.listClients()
-    const exit = await runEffect(program)
-    printResult(exit)
+    Effect.logInfo('Listing all OAuth2 clients...');
+    const program = authFlow.listClients();
+    const exit = await runEffect(program);
+    printResult(exit);
   },
 
   'get-client': async (clientId: string) => {
     if (!clientId) {
-      Effect.log('Error: client-id is required')
-      Effect.log('Usage: cli get-client <client-id>')
-      process.exit(1)
+      Effect.log('Error: client-id is required');
+      Effect.log('Usage: cli get-client <client-id>');
+      process.exit(1);
     }
-    Effect.log(`Getting client: ${clientId}...`)
-    const program = authFlow.getClient(clientId)
-    const exit = await runEffect(program)
-    printResult(exit)
+    Effect.log(`Getting client: ${clientId}...`);
+    const program = authFlow.getClient(clientId);
+    const exit = await runEffect(program);
+    printResult(exit);
   },
 
   'safe-get-client': async (clientId: string) => {
     const program = parseClientId(clientId)
       .pipe(
         Effect.andThen((validated) => {
-          ;(Effect.logInfo(`Safely getting client: ${clientId}...`),
-            Effect.map(() => authFlow.safeGetClient(validated)))
-        })
+          (Effect.logInfo(`Safely getting client: ${clientId}...`),
+            Effect.map(() => authFlow.safeGetClient(validated)));
+        }),
       )
-      .pipe(Effect.provide(Logger.json))
-    const exit = await runEffect(program)
-    printResult(exit)
+      .pipe(Effect.provide(Logger.json));
+    const exit = await runEffect(program);
+    printResult(exit);
   },
 
   'create-client': async (clientId: string) => {
     if (!clientId) {
-      Effect.logError('Error: client-id is required')
-      Effect.logError('Usage: cli create-client <client-id>')
-      process.exit(1)
+      Effect.logError('Error: client-id is required');
+      Effect.logError('Usage: cli create-client <client-id>');
+      process.exit(1);
     }
-    Effect.logInfo(`Creating client with validation: ${clientId}...`)
-    const program = authFlow.createClient(clientId)
-    const exit = await runEffect(program)
-    printResult(exit)
+    Effect.logInfo(`Creating client with validation: ${clientId}...`);
+    const program = authFlow.createClient(clientId);
+    const exit = await runEffect(program);
+    printResult(exit);
   },
 
   'new-client': async (clientName: string) => {
     if (!clientName) {
-      Effect.logError('Error: client-name is required')
-      Effect.logError('Usage: cli new-client <client-name>')
-      process.exit(1)
+      Effect.logError('Error: client-name is required');
+      Effect.logError('Usage: cli new-client <client-name>');
+      process.exit(1);
     }
-    Effect.logInfo(`Creating new client: ${clientName}...`)
-    const program = authFlow.newClient(clientName)
-    const exit = await runEffect(program)
-    printResult(exit)
+    Effect.logInfo(`Creating new client: ${clientName}...`);
+    const program = authFlow.newClient(clientName);
+    const exit = await runEffect(program);
+    printResult(exit);
   },
 
   help: async () => {
@@ -255,41 +246,41 @@ Commands:
       '  - BASE_URL for application base URL',
     ].join('\n')
     Effect.logError(helpText)
-`)
+`);
   },
-}
+};
 
 /**
  * Main CLI entry point
  */
 const main = async () => {
-  const args = process.argv.slice(2)
-  const command = args[0]
-  const params = args.slice(1)
+  const args = process.argv.slice(2);
+  const command = args[0];
+  const params = args.slice(1);
 
   if (!command || command === 'help') {
-    await commands.help()
-    return
+    await commands.help();
+    return;
   }
 
-  const handler = commands[command as keyof typeof commands]
+  const handler = commands[command as keyof typeof commands];
 
   if (!handler) {
-    Effect.logError(`Unknown command: ${command}`)
-    await commands.help()
-    process.exit(1)
+    Effect.logError(`Unknown command: ${command}`);
+    await commands.help();
+    process.exit(1);
   }
 
   try {
-    await handler(...params)
+    await handler(...params);
   } catch (error) {
-    Effect.logError('Unexpected error:', error)
-    process.exit(1)
+    Effect.logError('Unexpected error:', error);
+    process.exit(1);
   }
-}
+};
 
 // Run the CLI
 main().catch((error) => {
-  Effect.logError('Fatal error:', error)
-  process.exit(1)
-})
+  Effect.logError('Fatal error:', error);
+  process.exit(1);
+});

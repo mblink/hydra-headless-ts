@@ -1,18 +1,14 @@
 /**
  * Functional Google OAuth callback route using Effect
  */
-import { Effect, pipe } from 'effect'
-import express from 'express'
-import { type AppError } from '../fp/errors.js'
-import {
-  processCallback,
-  type GoogleOAuthClient,
-  type CallbackConfig,
-} from '../fp/services/callback.js'
-import type { RedisService } from '../fp/services/redis.js'
-import type { Layer } from 'effect'
+import { Effect, pipe } from 'effect';
+import express from 'express';
+import { type AppError } from '../fp/errors.js';
+import { processCallback, type GoogleOAuthClient, type CallbackConfig } from '../fp/services/callback.js';
+import type { RedisService } from '../fp/services/redis.js';
+import type { Layer } from 'effect';
 
-const router = express.Router()
+const router = express.Router();
 
 /**
  * Map application errors to HTTP responses
@@ -23,15 +19,15 @@ const mapErrorToHttp = (error: AppError): { status: number; message: string } =>
       return {
         status: 400,
         message: `Google token exchange failed: ${error.errorDescription}`,
-      }
+      };
     case 'RedisKeyNotFound':
-      return { status: 400, message: 'Session not found or expired' }
+      return { status: 400, message: 'Session not found or expired' };
     case 'RedisParseError':
-      return { status: 500, message: 'Session data corrupted' }
+      return { status: 500, message: 'Session data corrupted' };
     default:
-      return { status: 500, message: 'Internal server error' }
+      return { status: 500, message: 'Internal server error' };
   }
-}
+};
 
 /**
  * Callback handler
@@ -39,12 +35,12 @@ const mapErrorToHttp = (error: AppError): { status: number; message: string } =>
 const createCallbackHandler = (
   serviceLayer: Layer.Layer<RedisService>,
   googleClient: GoogleOAuthClient,
-  config: CallbackConfig
+  config: CallbackConfig,
 ) => {
   return async (req: express.Request, res: express.Response) => {
-    const code = req.query.code as string
-    const returnedState = req.query.state as string
-    const pkceKey = req.session?.pkceKey as string | undefined
+    const code = req.query.code as string;
+    const returnedState = req.query.state as string;
+    const pkceKey = req.session?.pkceKey as string | undefined;
 
     // Log entry point
     await Effect.runPromise(
@@ -69,9 +65,9 @@ const createCallbackHandler = (
           ip: req.ip,
           timestamp: new Date().toISOString(),
         }),
-        Effect.provide(serviceLayer)
-      )
-    )
+        Effect.provide(serviceLayer),
+      ),
+    );
 
     if (!code) {
       await Effect.runPromise(
@@ -80,11 +76,11 @@ const createCallbackHandler = (
             query: req.query,
             timestamp: new Date().toISOString(),
           }),
-          Effect.provide(serviceLayer)
-        )
-      )
-      res.status(400).send('Missing authorization code')
-      return
+          Effect.provide(serviceLayer),
+        ),
+      );
+      res.status(400).send('Missing authorization code');
+      return;
     }
 
     if (!req.session || !pkceKey) {
@@ -96,11 +92,11 @@ const createCallbackHandler = (
             session_id: req.session?.id,
             timestamp: new Date().toISOString(),
           }),
-          Effect.provide(serviceLayer)
-        )
-      )
-      res.status(400).send('Missing session or PKCE key')
-      return
+          Effect.provide(serviceLayer),
+        ),
+      );
+      res.status(400).send('Missing session or PKCE key');
+      return;
     }
 
     const program = pipe(
@@ -110,16 +106,16 @@ const createCallbackHandler = (
           state_preview: returnedState ? `${returnedState.substring(0, 20)}...` : 'none',
           pkce_key: pkceKey,
           config,
-        })
+        }),
       ),
       Effect.andThen(() => processCallback(code, returnedState, pkceKey, googleClient, config)),
-      Effect.provide(serviceLayer)
-    )
+      Effect.provide(serviceLayer),
+    );
 
-    const result = await Effect.runPromise(Effect.either(program))
+    const result = await Effect.runPromise(Effect.either(program));
 
     if (result._tag === 'Left') {
-      const { status, message } = mapErrorToHttp(result.left)
+      const { status, message } = mapErrorToHttp(result.left);
 
       await Effect.runPromise(
         Effect.logError('=== CALLBACK ERROR ===').pipe(
@@ -131,11 +127,11 @@ const createCallbackHandler = (
             code_preview: `${code.substring(0, 20)}...`,
             timestamp: new Date().toISOString(),
           }),
-          Effect.provide(serviceLayer)
-        )
-      )
+          Effect.provide(serviceLayer),
+        ),
+      );
 
-      res.status(status).send(message)
+      res.status(status).send(message);
     } else {
       await Effect.runPromise(
         Effect.logInfo('=== CALLBACK SUCCESS ===').pipe(
@@ -144,14 +140,14 @@ const createCallbackHandler = (
             code_preview: `${code.substring(0, 20)}...`,
             timestamp: new Date().toISOString(),
           }),
-          Effect.provide(serviceLayer)
-        )
-      )
+          Effect.provide(serviceLayer),
+        ),
+      );
 
-      res.redirect(result.right)
+      res.redirect(result.right);
     }
-  }
-}
+  };
+};
 
 /**
  * Create callback router with service layer
@@ -159,8 +155,8 @@ const createCallbackHandler = (
 export const createCallbackRouter = (
   serviceLayer: Layer.Layer<RedisService>,
   googleClient: GoogleOAuthClient,
-  config: CallbackConfig
+  config: CallbackConfig,
 ) => {
-  router.get('/', createCallbackHandler(serviceLayer, googleClient, config))
-  return router
-}
+  router.get('/', createCallbackHandler(serviceLayer, googleClient, config));
+  return router;
+};

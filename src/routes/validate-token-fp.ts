@@ -2,16 +2,16 @@
  * Token validation endpoint for testing JWT tokens
  * GET /validate-token?token=<jwt> or with Authorization: Bearer <jwt> header
  */
-import { Router } from 'express'
-import { Effect, Layer } from 'effect'
-import { decodeJwt, decodeProtectedHeader } from 'jose'
-import axios from 'axios'
-import { JWTService, type JWKS } from '../fp/services/jwt.js'
-import { appConfig } from '../config.js'
-import type { Request, Response } from 'express'
+import { Router } from 'express';
+import { Effect, Layer } from 'effect';
+import { decodeJwt, decodeProtectedHeader } from 'jose';
+import axios from 'axios';
+import { JWTService, type JWKS } from '../fp/services/jwt.js';
+import { appConfig } from '../config.js';
+import type { Request, Response } from 'express';
 
 export const createValidateTokenRouter = (serviceLayer: Layer.Layer<any>) => {
-  const router = Router()
+  const router = Router();
 
   /**
    * GET /validate-token
@@ -20,12 +20,12 @@ export const createValidateTokenRouter = (serviceLayer: Layer.Layer<any>) => {
   router.get('/', async (req: Request, res: Response) => {
     try {
       // Get token from query parameter or Authorization header
-      let token = req.query.token as string | undefined
+      let token = req.query.token as string | undefined;
 
       if (!token) {
-        const authHeader = req.headers.authorization
+        const authHeader = req.headers.authorization;
         if (authHeader?.startsWith('Bearer ')) {
-          token = authHeader.substring(7)
+          token = authHeader.substring(7);
         }
       }
 
@@ -33,54 +33,54 @@ export const createValidateTokenRouter = (serviceLayer: Layer.Layer<any>) => {
         return res.status(400).json({
           error: 'No token provided',
           message: 'Provide token via ?token=<jwt> or Authorization: Bearer <jwt> header',
-        })
+        });
       }
 
       // Decode token header and payload (without verification)
-      let header: any
-      let payload: any
+      let header: any;
+      let payload: any;
 
       try {
-        header = decodeProtectedHeader(token)
-        payload = decodeJwt(token)
+        header = decodeProtectedHeader(token);
+        payload = decodeJwt(token);
       } catch (error) {
         return res.status(400).json({
           error: 'Invalid token format',
           message: 'Token could not be decoded',
           details: String(error),
-        })
+        });
       }
 
       // Fetch JWKS based on configured provider
       const jwksUrl =
         appConfig.jwtProvider === 'google'
           ? 'https://www.googleapis.com/oauth2/v3/certs'
-          : `${appConfig.hydraPublicUrl}/.well-known/jwks.json`
+          : `${appConfig.hydraPublicUrl}/.well-known/jwks.json`;
 
-      let jwks: JWKS
+      let jwks: JWKS;
       try {
-        const response = await axios.get<JWKS>(jwksUrl)
-        jwks = response.data
+        const response = await axios.get<JWKS>(jwksUrl);
+        jwks = response.data;
       } catch (error) {
         return res.status(500).json({
           error: 'Failed to fetch JWKS',
           message: String(error),
           provider: appConfig.jwtProvider,
-        })
+        });
       }
 
       // Verify token using JWT service
       const program = Effect.gen(function* () {
-        const jwt = yield* JWTService
-        const verifiedClaims = yield* jwt.verify(token)
-        return verifiedClaims
-      })
+        const jwt = yield* JWTService;
+        const verifiedClaims = yield* jwt.verify(token);
+        return verifiedClaims;
+      });
 
       try {
-        const verifiedClaims = await Effect.runPromise(Effect.provide(program, serviceLayer))
+        const verifiedClaims = await Effect.runPromise(Effect.provide(program, serviceLayer));
 
-        const now = Math.floor(Date.now() / 1000)
-        const timeUntilExpiry = verifiedClaims.exp - now
+        const now = Math.floor(Date.now() / 1000);
+        const timeUntilExpiry = verifiedClaims.exp - now;
 
         return res.json({
           valid: true,
@@ -108,7 +108,7 @@ export const createValidateTokenRouter = (serviceLayer: Layer.Layer<any>) => {
             time_until_expiry_seconds: timeUntilExpiry,
             is_expired: timeUntilExpiry <= 0,
           },
-        })
+        });
       } catch (error) {
         return res.status(401).json({
           valid: false,
@@ -132,15 +132,15 @@ export const createValidateTokenRouter = (serviceLayer: Layer.Layer<any>) => {
             'Token issuer/audience does not match',
             'Token was not signed with a key in the JWKS',
           ],
-        })
+        });
       }
     } catch (error) {
       return res.status(500).json({
         error: 'Internal server error',
         message: String(error),
-      })
+      });
     }
-  })
+  });
 
-  return router
-}
+  return router;
+};
