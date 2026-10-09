@@ -6,11 +6,11 @@ This project follows TypeScript and functional programming best practices with c
 
 ### ESLint
 
-- **Version**: ESLint 9.x (flat config format)
+- **Version**: ESLint 10.x (flat config format)
 - **Parser**: @typescript-eslint/parser
 - **Plugins**:
   - `@typescript-eslint/eslint-plugin` - TypeScript-specific linting rules
-  - `eslint-plugin-import` - Import/export syntax and order
+  - `eslint-plugin-import-x` - Import/export syntax and order
   - `eslint-plugin-promise` - Promise best practices
   - `eslint-plugin-functional` - Functional programming patterns
 
@@ -19,8 +19,10 @@ This project follows TypeScript and functional programming best practices with c
 - **Configuration**: `.prettierrc.json`
 - **Settings**:
   - Single quotes
-  - No semicolons (matches Effect style)
-  - 100 character line width
+  - Semicolons
+  - Trailing commas everywhere (`trailingComma: "all"`)
+  - 120 character line width
+  - Objects keep the wrapping they were written with (`objectWrap: "preserve"`)
   - 2 space indentation
 
 ## Scripts
@@ -64,6 +66,8 @@ npm run validate
 The ESLint configuration ([eslint.config.js](eslint.config.js)) is structured for Effect-based functional programming:
 
 ### Key Rules
+
+`npm run lint` runs with `--max-warnings 0`, so a rule set to `warn` fails lint just like `error`.
 
 **TypeScript**:
 
@@ -155,20 +159,16 @@ This ensures:
 - ✅ TypeScript compiles without errors
 - ✅ All tests pass
 
-## CI/CD Integration
+## What fails CI and the build
 
-Add to your CI pipeline:
+- `npm run ci` (Woodpecker's test step on `RC`) runs `clean`, `lint`, `format:check`, `tsc` and the tests.
+- `npm run build` (run by the Docker image build) runs `clean`, `lint`, `format:check`, `tsc` and Rollup.
 
-```yaml
-- name: Validate Code
-  run: npm run validate
-```
+Any lint error or warning, unformatted file or type error fails both. `npm run format` and `npm run lint:fix` fix most of them.
 
-This single command runs:
+### Rollup warnings
 
-1. TypeScript type checking
-2. ESLint validation
-3. Test suite
+Rollup's `onwarn` in `rollup.config.js` turns every warning into a build failure. Fix the cause rather than allowlisting it. Unresolved-import warnings matter most: Rollup otherwise treats the import as external, so the build succeeds and the server fails at runtime. Only add a warning code to the allowlist when it comes from a bundled dependency under `node_modules`; the two allowed today are `THIS_IS_UNDEFINED` (TypeScript helpers in `@ory/hydra-client-fetch`) and `CIRCULAR_DEPENDENCY` (`pg` and `pg-pool` import each other).
 
 ## Customization
 
