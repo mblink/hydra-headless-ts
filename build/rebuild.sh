@@ -75,9 +75,11 @@ fi
 PUSH_IMAGE="${REPO_BASE}/${ECR_REPO}"
 BUILD_DATE=$(date -u +"%Y%m%dT%H%M%S")
 GIT_COMMIT=$($GIT_COMMAND rev-parse --short HEAD)
+# The image build fetches exactly this commit (see build/Dockerfile.headless-ts)
+export GIT_SHA=$($GIT_COMMAND rev-parse HEAD)
 BUILD_HASH="${BUILD_DATE}_hydra-headless-ts_${GIT_COMMIT}"
 
-# Which branch the image build clones. An explicit GIT_BRANCH always wins. In
+# Which branch HEAD should match on origin. An explicit GIT_BRANCH always wins. In
 # Woodpecker it is the branch being built: CI_COMMIT_SOURCE_BRANCH for a pull
 # request (CI_COMMIT_BRANCH is the PR's target there), CI_COMMIT_BRANCH for a
 # push. Woodpecker doesn't set Drone's DRONE_BRANCH, so PR builds used to fall
@@ -104,7 +106,7 @@ echo "Building from branch: ${GIT_BRANCH} (${GIT_COMMIT})"
 
 # Refuse to publish an image whose contents do not match the tag it gets.
 #
-# build/Dockerfile.headless-ts clones $GIT_BRANCH from GitHub rather than
+# build/Dockerfile.headless-ts fetches $GIT_SHA from GitHub rather than
 # copying this working tree, so the local checkout influences the *tag* but
 # almost none of the *contents*. Three ways that diverges:
 #

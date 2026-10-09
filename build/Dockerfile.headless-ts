@@ -1,4 +1,11 @@
-# Runtime image: clones this repo at $GIT_BRANCH and builds it.
+# Runtime image: fetches this repo at commit $GIT_SHA and builds it.
+#
+# The commit, not a branch: BuildKit caches a RUN by its text and never looks at
+# what the command fetches, so `git clone --branch RC` was cached once and every
+# later build reused that stale checkout -- images were tagged with the new SHA
+# but held old code, and builds failed once the Dockerfile ran `npm ci` against
+# a checkout from before package-lock.json was tracked. Naming the commit in the
+# RUN changes its cache key on every commit. build/rebuild.sh passes the SHA.
 #
 # Auth is a GIT_ASKPASS script supplied as a BuildKit secret, not a build-arg.
 # The previous `https://$GIT_TOKEN@github.com/...` form had two problems: no
@@ -16,14 +23,20 @@
 FROM node:22-alpine
 
 WORKDIR /src/app
-ARG GIT_BRANCH=RC
 RUN apk add --no-cache vim git bash postgresql-client
+
+# After the apk layer, so only the steps from the fetch on change per commit
+ARG GIT_SHA
 
 # mode=0555: GIT_ASKPASS must be an executable git can invoke, not a data file.
 RUN --mount=type=secret,id=github_askpass,target=/run/secrets/askpass.sh,mode=0555 <<'CLONE'
 set -e
+if [ -z "$GIT_SHA" ]; then echo "error: build with --build-arg GIT_SHA=<commit> (see build/rebuild.sh)" >&2; exit 1; fi
 export GIT_ASKPASS=/run/secrets/askpass.sh GIT_TERMINAL_PROMPT=0
-git clone --depth 1 --branch "$GIT_BRANCH" https://github.com/mblink/hydra-headless-ts.git .
+git init -q .
+git remote add origin https://github.com/mblink/hydra-headless-ts.git
+git fetch -q --depth 1 origin "$GIT_SHA"
+git checkout -q FETCH_HEAD
 CLONE
 
 RUN npm ci \
