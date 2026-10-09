@@ -45,17 +45,18 @@ Scan the session for any of these signals. They are the items most likely to rep
 
 ## Where each finding belongs
 
-This repo has no `CLAUDE.md` — its durable knowledge lives in topic docs at the repo root. Route decisions, in order of preference:
+Most of this repo's durable knowledge lives in topic docs at the repo root; `CLAUDE.md` holds the short version that every session loads. Route decisions, in order of preference:
 
-1. **An existing topic doc** — this repo's primary home for durable facts:
+1. **`CLAUDE.md`** — only for what every session needs before it starts: commands, architecture, conventions, which branch is which, how CI runs. Keep it short and link to the topic doc for detail instead of repeating it.
+2. **An existing topic doc** — this repo's primary home for durable facts:
    - `STAGING_TROUBLESHOOTING.md` — symptom-first catalogue of ops/deploy mistakes (Compose, Hydra/Google OAuth client config, nginx/HAProxy, mariadb-mcp instances). Despite the name, its content applies to prod too; most incident-debrief findings land here.
    - `LOCAL_TESTING.md` — the local dev stack, drift between dev and Salt-rendered staging/prod.
    - `AUTH_FLOW.md` / `OAUTH2_ARCHITECTURE.md` — how the OAuth/Hydra flow and client model are *designed*; put a finding here if it's about the app's behavior/architecture rather than an ops mistake (e.g. `ensureClient`'s fallback-creation behavior).
    - `DEVELOPMENT.md` — workflow, testing, linting, build.
    Always check whether an existing bullet already half-covers the finding before adding a new one — prefer sharpening/broadening an existing bullet over duplicating it.
-2. **Existing skill** under `.claude/skills/<name>/SKILL.md` — check first; there may be more here by the time you read this.
-3. **New skill** under `.claude/skills/<new-name>/SKILL.md` — only when the learning is a repeatable *procedure* (an ordered diagnostic runbook, a recovery recipe) rather than a fact, and doesn't fit any existing doc's scope. A symptom-and-fix fact belongs in a topic doc above, not a new skill.
-4. **Personal memory** at `/Users/<user>/.claude/projects/<project>/memory/` — only for things specific to the individual: their role, account-level blockers, preferences about how Claude should interact with them. **Never put codebase or infra facts here** — they don't reach teammates, and this repo's whole point is that ops knowledge is shared via committed docs.
+3. **Existing skill** under `.claude/skills/<name>/SKILL.md` — check first; there may be more here by the time you read this.
+4. **New skill** under `.claude/skills/<new-name>/SKILL.md` — only when the learning is a repeatable *procedure* (an ordered diagnostic runbook, a recovery recipe) rather than a fact, and doesn't fit any existing doc's scope. A symptom-and-fix fact belongs in a topic doc above, not a new skill.
+5. **Personal memory** at `/Users/<user>/.claude/projects/<project>/memory/` — only for things specific to the individual: their role, account-level blockers, preferences about how Claude should interact with them. **Never put codebase or infra facts here** — they don't reach teammates, and this repo's whole point is that ops knowledge is shared via committed docs.
 
 ## Workflow
 

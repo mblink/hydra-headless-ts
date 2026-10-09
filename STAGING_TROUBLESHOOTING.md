@@ -51,6 +51,22 @@ mistake doesn't cost another debugging session.
   ad-hoc commands typed by hand; those still need the flags spelled out (see
   the diagnostic commands throughout this doc for the exact invocation).
 
+- **The running app doesn't have a change that the image tag says it has, or
+  the `RC` pipeline's `build-and-push` step fails with `npm error code
+  EUSAGE` (`npm ci` "can only install with an existing package-lock.json").**
+  Until fe7523f, `build/Dockerfile.headless-ts` ran `git clone --branch RC`.
+  BuildKit caches a `RUN` by its text, not by what it fetches, so the CI agent
+  reused one old clone for every build (the log shows the clone step as
+  `CACHED`). Images were tagged with the new commit's SHA but held older
+  code, and once the build switched to `npm ci` it failed, because that clone
+  predated `package-lock.json`. The build now fetches the exact commit
+  (`GIT_SHA`, passed by `build/rebuild.sh`). Don't trust an image built before
+  fe7523f to contain its tagged commit. To see what a host is really running:
+  `sudo docker exec hydra-mcp-headless-ts-1 git -C /src/app log --oneline -1`.
+  After CI pushes a new `:latest`, a host keeps the old image until you run
+  `compose pull headless-ts` and then `compose up -d --force-recreate
+  --no-deps headless-ts` (`compose` from `scripts/compose-env.sh`).
+
 ## App startup and sessions
 
 - **The container exits at startup naming `SESSION_SECRET` and
@@ -134,6 +150,24 @@ mistake doesn't cost another debugging session.
   configured `AUTH_FLOW_CLIENT_ID` and any other intentionally-registered
   client.
 
+- **A client that isn't Claude gets a 400 at registration or at
+  `/oauth2/auth`.** Login and consent never prompt the user, so the app only
+  hands codes to known redirect URIs: `ALLOWED_REDIRECT_URIS` (comma
+  separated, defaulting to Claude's two `/api/mcp/auth_callback` URLs) plus
+  http loopback (`localhost`, `127.0.0.1`, `[::1]`, any port; turn off with
+  `ALLOW_LOOPBACK_REDIRECT_URIS=false`). `/oauth2/register` (POST and PUT)
+  answers `{"error":"invalid_redirect_uri"}`, and `/oauth2/auth` answers
+  `invalid_request` "redirect_uri is not allowed". The same `invalid_request`
+  comes back for plain PKCE ("code_challenge_method must be S256"), a missing
+  `state` or `code_challenge`, or a parameter given twice. The fix for a
+  legitimate client is to add its exact redirect URI to
+  `ALLOWED_REDIRECT_URIS`, not to loosen the check. Salt's
+  `env.tmpl.jinja2` doesn't render that variable yet, so a deployed host is
+  on the default until someone adds it there. At `/oauth2/token`,
+  `invalid_grant` "Authorization code has already been used" or "... was not
+  issued to this client" means a client retried or swapped codes; each code
+  works once, for the client and redirect URI that started the flow.
+
 ## nginx / HAProxy
 
 - **A config value was fixed on disk but the old behavior persists.** Both
@@ -147,6 +181,22 @@ mistake doesn't cost another debugging session.
   `/mcp` → one backend); it has no per-mariadb-mcp-instance knowledge. The
   per-instance `upstream`/`location`/`auth_request` logic lives in the
   Salt-templated host nginx config, not HAProxy.
+
+- **Hydra's admin API (`/admin/...`, `/clients`, `/keys`, `/health`,
+  `/oauth2/introspect`, ...) answers 403 through `oauth.<env>.bondlink.org`.**
+  It's served only to IPs in HAProxy's `admin_ips.txt` (salt's
+  `salt/haproxy/etc/haproxy/admin_ips.jinja2`; salt#1060). It works in two
+  parts. HAProxy's `hydra-headless-ts` backend strips any incoming
+  `X-Hydra-Admin-Allowed` header and sets it to `1` for an allowlisted source
+  IP. nginx serves the admin locations only when that header is `1` *and* the
+  request came from a proxy node, then strips the header before proxying to
+  Hydra on 4445. HAProxy has to do the IP check because nginx only sees the
+  proxy's address. nginx has to match the path because it matches the
+  decoded path, which HAProxy doesn't, so `/%61dmin` can't slip past. A 403
+  means your IP isn't in the list, or one of the two Salt states (`haproxy`
+  on the proxy nodes, `hydra-headless-ts` on the app host) hasn't been
+  applied. Until both are applied, everyone gets a 403. From the app host
+  itself, `curl http://localhost:4445/...` still reaches Hydra directly.
 
 ## mariadb-mcp instances
 

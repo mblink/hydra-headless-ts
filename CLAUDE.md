@@ -55,7 +55,8 @@ npm run build && npm run serve:dev         # run locally against /etc/hydra-head
 - ESM with `module: nodenext`, so relative imports must use the `.js` extension, even from `.ts` files.
 - ESLint 10 flat config with `eslint-plugin-import-x` (TypeScript resolver), enforcing import order, `consistent-type-imports` and `no-floating-promises`; also `eslint-plugin-functional`.
 - Lint runs with `--max-warnings 0`, so `warn` rules fail too. `npm run ci` and `npm run build` fail on any lint, format, knip or type error, and Rollup fails on any warning except two allowlisted ones from bundled dependencies (see `LINTING.md`).
-- CI: `RC` (the deployed branch) is tested and built by Woodpecker (`.woodpecker.yml`: `npm ci`, `npm run ci`, then the Docker image build); it runs only for pushes to `RC` and PRs based on `RC`. It is the only CI; there is no GitHub Actions workflow. `package-lock.json` is committed; install with `npm ci`.
+- `RC` is this repo's main branch, and the one that's deployed. Branch from `RC` and open PRs against `RC`, not `main`.
+- CI: Woodpecker (`.woodpecker.yml`) runs only for pushes to `RC` and PRs based on `RC`. Both run `npm ci` and `npm run ci`. Only a push to `RC` builds the Docker image and pushes it to ECR as `:latest`, so an image build failure first shows up after the merge. It is the only CI; there is no GitHub Actions workflow. The `woodpecker-ci` skill shows how to read a failed step's log. `package-lock.json` is committed; install with `npm ci`.
 - The rotating file logger writes to `LOG_DIR` (default `/var/log/hydra-headless-ts`); set `LOG_DIR` when that path isn't writable, e.g. running tests outside the server.
 
 ## Deployment notes
