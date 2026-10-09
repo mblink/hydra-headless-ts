@@ -1,5 +1,5 @@
-import Html from '@kitajs/html'
-import { Layout } from './components/Layout.js'
+import Html from '@kitajs/html';
+import { Layout } from './components/Layout.js';
 
 /**
  * OAuth2 Logout Flow - Session Termination
@@ -24,13 +24,13 @@ import { Layout } from './components/Layout.js'
  */
 export interface LogoutProps {
   /** POST endpoint for logout form submission */
-  action: string
+  action: string;
   /** XSRF token header name for CSRF protection */
-  envXsrfToken: string
+  envXsrfToken: string;
   /** CSRF token value */
-  csrfToken: string
+  csrfToken: string;
   /** Hydra's logout challenge identifying this session */
-  challenge: string
+  challenge: string;
 }
 
 export function Logout({ action, envXsrfToken, csrfToken, challenge }: LogoutProps): string {
@@ -50,5 +50,5 @@ export function Logout({ action, envXsrfToken, csrfToken, challenge }: LogoutPro
         </form>
       </>
     ),
-  })
+  });
 }

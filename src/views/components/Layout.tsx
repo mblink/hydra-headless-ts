@@ -1,8 +1,8 @@
-import Html from '@kitajs/html'
+import Html from '@kitajs/html';
 
 export interface LayoutProps {
-  title: string
-  children: string | JSX.Element
+  title: string;
+  children: string | JSX.Element;
 }
 
 export function Layout({ title, children }: LayoutProps): string {
@@ -16,5 +16,5 @@ export function Layout({ title, children }: LayoutProps): string {
         <body>{Html.contentsToString([children])}</body>
       </html>
     </>
-  ) as string
+  ) as string;
 }

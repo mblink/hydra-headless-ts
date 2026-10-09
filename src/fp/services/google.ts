@@ -8,68 +8,63 @@
  * - Token exchange from code
  * - User info retrieval
  */
-import axios from 'axios'
-import { Effect, pipe, Context, Layer } from 'effect'
-import { OAuth2Client } from 'google-auth-library'
-import { GoogleTokenResponseSchema, GoogleUserInfoSchema } from '../domain.js'
-import { NetworkError, HttpStatusError, ParseError, GoogleAuthError } from '../errors.js'
-import { validateSchema } from '../validation.js'
-import type { GoogleTokenResponse, GoogleUserInfoResponse, RefreshTokenData } from '../domain.js'
-import type { HttpError } from '../errors.js'
-import type { AxiosError } from 'axios'
+import axios from 'axios';
+import { Effect, pipe, Context, Layer } from 'effect';
+import { OAuth2Client } from 'google-auth-library';
+import { GoogleTokenResponseSchema, GoogleUserInfoSchema } from '../domain.js';
+import { NetworkError, HttpStatusError, ParseError, GoogleAuthError } from '../errors.js';
+import { validateSchema } from '../validation.js';
+import type { GoogleTokenResponse, GoogleUserInfoResponse, RefreshTokenData } from '../domain.js';
+import type { HttpError } from '../errors.js';
+import type { AxiosError } from 'axios';
 
 /**
  * Google OAuth service interface
  */
 export interface GoogleOAuthService {
   readonly refreshToken: (
-    tokenData: RefreshTokenData
-  ) => Effect.Effect<GoogleTokenResponse, HttpError | GoogleAuthError>
+    tokenData: RefreshTokenData,
+  ) => Effect.Effect<GoogleTokenResponse, HttpError | GoogleAuthError>;
 
-  readonly generateAuthUrl: (
-    scope: string,
-    state: string,
-    redirectUrl: string
-  ) => Effect.Effect<string, HttpError>
+  readonly generateAuthUrl: (scope: string, state: string, redirectUrl: string) => Effect.Effect<string, HttpError>;
 
   readonly getTokensFromCode: (
     code: string,
-    redirectUrl: string
-  ) => Effect.Effect<GoogleTokenResponse, HttpError | GoogleAuthError>
+    redirectUrl: string,
+  ) => Effect.Effect<GoogleTokenResponse, HttpError | GoogleAuthError>;
 
   readonly refreshAccessToken: (
-    refreshToken: string
-  ) => Effect.Effect<GoogleTokenResponse, HttpError | GoogleAuthError>
+    refreshToken: string,
+  ) => Effect.Effect<GoogleTokenResponse, HttpError | GoogleAuthError>;
 
   readonly getUserInfo: (
     accessToken: string,
-    idToken: string
-  ) => Effect.Effect<GoogleUserInfoResponse, HttpError | GoogleAuthError>
+    idToken: string,
+  ) => Effect.Effect<GoogleUserInfoResponse, HttpError | GoogleAuthError>;
 }
 
 /**
  * Google OAuth service tag
  */
-export const GoogleOAuthService = Context.GenericTag<GoogleOAuthService>('GoogleOAuthService')
+export const GoogleOAuthService = Context.GenericTag<GoogleOAuthService>('GoogleOAuthService');
 
 /**
  * Configuration for Google OAuth
  */
 export interface GoogleOAuthConfig {
-  clientId: string
-  clientSecret: string
-  redirectUri?: string
-  tokenEndpoint?: string
-  userInfoEndpoint?: string
+  clientId: string;
+  clientSecret: string;
+  redirectUri?: string;
+  tokenEndpoint?: string;
+  userInfoEndpoint?: string;
 }
 
 /**
  * Create Google OAuth service implementation
  */
 export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthService => {
-  const TOKEN_ENDPOINT = config.tokenEndpoint ?? 'https://oauth2.googleapis.com/token'
-  const USER_INFO_ENDPOINT =
-    config.userInfoEndpoint ?? 'https://www.googleapis.com/oauth2/v2/userinfo'
+  const TOKEN_ENDPOINT = config.tokenEndpoint ?? 'https://oauth2.googleapis.com/token';
+  const USER_INFO_ENDPOINT = config.userInfoEndpoint ?? 'https://www.googleapis.com/oauth2/v2/userinfo';
 
   // Create OAuth2Client if redirectUri is provided (for auth flow operations)
   const oauth2Client = config.redirectUri
@@ -78,27 +73,27 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
         clientSecret: config.clientSecret,
         redirectUri: config.redirectUri,
       })
-    : null
+    : null;
 
   /**
    * Helper to handle axios errors
    */
   const handleAxiosError = (error: unknown, operationName: string): HttpError | GoogleAuthError => {
     if (axios.isAxiosError(error)) {
-      const axiosError = error as AxiosError
+      const axiosError = error as AxiosError;
 
       // Try to parse Google error response
       if (axiosError.response?.data) {
         try {
           const errorData = axiosError.response.data as {
-            error?: unknown
-            error_description?: string
-          }
+            error?: unknown;
+            error_description?: string;
+          };
           if (typeof errorData.error === 'string') {
             return new GoogleAuthError({
               error: errorData.error,
               errorDescription: errorData.error_description,
-            })
+            });
           }
         } catch {
           // Fall through to generic HTTP error
@@ -110,15 +105,15 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
         status: axiosError.response?.status ?? 500,
         statusText: axiosError.response?.statusText ?? 'Unknown error',
         body: axiosError.response?.data,
-      })
+      });
     }
 
     // Network or unknown error
     return new NetworkError({
       message: `Network error during ${operationName}`,
       cause: error,
-    })
-  }
+    });
+  };
 
   return {
     refreshToken: (tokenData: RefreshTokenData) =>
@@ -126,14 +121,12 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
         Effect.logInfo('=== GOOGLE refreshToken CALLED ===').pipe(
           Effect.annotateLogs({
             has_refresh_token: !!tokenData.refresh_token,
-            refresh_token_preview: tokenData.refresh_token
-              ? `${tokenData.refresh_token.substring(0, 20)}...`
-              : 'none',
+            refresh_token_preview: tokenData.refresh_token ? `${tokenData.refresh_token.substring(0, 20)}...` : 'none',
             client_id: tokenData.client_id,
             scope: tokenData.scope,
             endpoint: TOKEN_ENDPOINT,
             timestamp: new Date().toISOString(),
-          })
+          }),
         ),
         Effect.andThen(() =>
           Effect.tryPromise({
@@ -150,12 +143,12 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
                   headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                   },
-                }
-              )
-              return response.data
+                },
+              );
+              return response.data;
             },
             catch: (error) => handleAxiosError(error, 'refreshToken'),
-          })
+          }),
         ),
         Effect.tap((data: Record<string, unknown>) =>
           Effect.logInfo('=== GOOGLE refreshToken RESPONSE ===').pipe(
@@ -165,8 +158,8 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
               expires_in: data.expires_in,
               scope: data.scope,
               timestamp: new Date().toISOString(),
-            })
-          )
+            }),
+          ),
         ),
         Effect.flatMap((data) => validateSchema(GoogleTokenResponseSchema, data)),
         Effect.tap((tokenResponse) =>
@@ -176,8 +169,8 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
               scope: tokenResponse.scope,
               has_new_refresh_token: !!tokenResponse.refresh_token,
               timestamp: new Date().toISOString(),
-            })
-          )
+            }),
+          ),
         ),
         Effect.tapError((error) =>
           Effect.logError('=== GOOGLE refreshToken ERROR ===').pipe(
@@ -185,23 +178,23 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
               error_tag: error._tag,
               error_details: error,
               timestamp: new Date().toISOString(),
-            })
-          )
+            }),
+          ),
         ),
         Effect.mapError((error): HttpError | GoogleAuthError =>
           error._tag === 'SchemaValidationError'
             ? new ParseError({
                 message: `Failed to parse Google token response: ${error.errors.join(', ')}`,
               })
-            : error
-        )
+            : error,
+        ),
       ),
 
     generateAuthUrl: (scope: string, state: string, redirectUrl: string) =>
       Effect.tryPromise({
         try: async () => {
           if (!oauth2Client) {
-            throw new Error('OAuth2Client not initialized - redirectUri required in config')
+            throw new Error('OAuth2Client not initialized - redirectUri required in config');
           }
           const authUri = oauth2Client.generateAuthUrl({
             access_type: 'offline',
@@ -210,8 +203,8 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
             state,
             response_type: 'code',
             redirect_uri: redirectUrl,
-          })
-          return authUri
+          });
+          return authUri;
         },
         catch: (error): HttpError =>
           new NetworkError({
@@ -228,22 +221,22 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
             code_preview: code ? `${code.substring(0, 20)}...` : 'none',
             redirect_url: redirectUrl,
             timestamp: new Date().toISOString(),
-          })
+          }),
         ),
         Effect.andThen(() =>
           Effect.tryPromise({
             try: async () => {
               if (!oauth2Client) {
-                throw new Error('OAuth2Client not initialized - redirectUri required in config')
+                throw new Error('OAuth2Client not initialized - redirectUri required in config');
               }
               const response = await oauth2Client.getToken({
                 code,
                 redirect_uri: redirectUrl,
-              })
-              return response.tokens
+              });
+              return response.tokens;
             },
             catch: (error) => handleAxiosError(error, 'getTokensFromCode'),
-          })
+          }),
         ),
         Effect.tap((data) =>
           Effect.logInfo('=== GOOGLE getTokensFromCode RESPONSE ===').pipe(
@@ -254,8 +247,8 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
               expiry_date: data.expiry_date,
               scope: data.scope,
               timestamp: new Date().toISOString(),
-            })
-          )
+            }),
+          ),
         ),
         Effect.flatMap((data) => validateSchema(GoogleTokenResponseSchema, data)),
         Effect.tap((tokenResponse) =>
@@ -266,8 +259,8 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
               has_refresh_token: !!tokenResponse.refresh_token,
               has_id_token: !!tokenResponse.id_token,
               timestamp: new Date().toISOString(),
-            })
-          )
+            }),
+          ),
         ),
         Effect.tapError((error) =>
           Effect.logError('=== GOOGLE getTokensFromCode ERROR ===').pipe(
@@ -276,16 +269,16 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
               error_details: error,
               code_preview: code ? `${code.substring(0, 20)}...` : 'none',
               timestamp: new Date().toISOString(),
-            })
-          )
+            }),
+          ),
         ),
         Effect.mapError((error): HttpError | GoogleAuthError =>
           error._tag === 'SchemaValidationError'
             ? new ParseError({
                 message: `Failed to parse Google token response: ${error.errors.join(', ')}`,
               })
-            : error
-        )
+            : error,
+        ),
       ),
 
     refreshAccessToken: (refreshToken: string) =>
@@ -304,9 +297,9 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
                 headers: {
                   'Content-Type': 'application/x-www-form-urlencoded',
                 },
-              }
-            )
-            return response.data
+              },
+            );
+            return response.data;
           },
           catch: (error) => handleAxiosError(error, 'refreshAccessToken'),
         }),
@@ -316,8 +309,8 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
             ? new ParseError({
                 message: `Failed to parse Google token response: ${error.errors.join(', ')}`,
               })
-            : error
-        )
+            : error,
+        ),
       ),
 
     getUserInfo: (accessToken: string, idToken: string) =>
@@ -330,19 +323,19 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
             id_token_preview: idToken ? `${idToken.substring(0, 20)}...` : 'none',
             endpoint: USER_INFO_ENDPOINT,
             timestamp: new Date().toISOString(),
-          })
+          }),
         ),
         Effect.andThen(() =>
           Effect.tryPromise({
             try: async () => {
-              const url = `${USER_INFO_ENDPOINT}?alt=json&access_token=${accessToken}`
+              const url = `${USER_INFO_ENDPOINT}?alt=json&access_token=${accessToken}`;
               const response = await axios.get(url, {
                 headers: { Authorization: `Bearer ${idToken}` },
-              })
-              return response.data
+              });
+              return response.data;
             },
             catch: (error) => handleAxiosError(error, 'getUserInfo'),
-          })
+          }),
         ),
         Effect.tap((data: Record<string, unknown>) =>
           Effect.logInfo('=== GOOGLE getUserInfo RESPONSE ===').pipe(
@@ -352,8 +345,8 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
               has_verified_email: !!data.verified_email,
               verified: data.verified_email,
               timestamp: new Date().toISOString(),
-            })
-          )
+            }),
+          ),
         ),
         Effect.flatMap((data) => validateSchema(GoogleUserInfoSchema, data)),
         Effect.tap((userInfo) =>
@@ -363,8 +356,8 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
               verified_email: userInfo.verified_email,
               has_name: !!userInfo.name,
               timestamp: new Date().toISOString(),
-            })
-          )
+            }),
+          ),
         ),
         Effect.tapError((error) =>
           Effect.logError('=== GOOGLE getUserInfo ERROR ===').pipe(
@@ -372,22 +365,22 @@ export const makeGoogleOAuthService = (config: GoogleOAuthConfig): GoogleOAuthSe
               error_tag: error._tag,
               error_details: error,
               timestamp: new Date().toISOString(),
-            })
-          )
+            }),
+          ),
         ),
         Effect.mapError((error): HttpError | GoogleAuthError =>
           error._tag === 'SchemaValidationError'
             ? new ParseError({
                 message: `Failed to parse Google user info response: ${error.errors.join(', ')}`,
               })
-            : error
-        )
+            : error,
+        ),
       ),
-  }
-}
+  };
+};
 
 /**
  * Create a Layer for GoogleOAuthService
  */
 export const GoogleOAuthServiceLive = (config: GoogleOAuthConfig) =>
-  Layer.succeed(GoogleOAuthService, makeGoogleOAuthService(config))
+  Layer.succeed(GoogleOAuthService, makeGoogleOAuthService(config));

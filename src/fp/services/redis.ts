@@ -2,7 +2,7 @@
  * Redis service using Effect for all side effects
  * All Redis operations return Effect<Result, RedisError>
  */
-import { Effect, pipe, Context, Layer } from 'effect'
+import { Effect, pipe, Context, Layer } from 'effect';
 import {
   RedisConnectionError,
   RedisKeyNotFound,
@@ -11,38 +11,30 @@ import {
   RedisDeleteError,
   type SchemaValidationError,
   type RedisError,
-} from '../errors.js'
-import { validateSchema } from '../validation.js'
-import type { Schema } from 'effect'
-import type { Redis } from 'ioredis'
+} from '../errors.js';
+import { validateSchema } from '../validation.js';
+import type { Schema } from 'effect';
+import type { Redis } from 'ioredis';
 
 /**
  * Redis service interface
  */
 export interface RedisService {
-  readonly get: (key: string) => Effect.Effect<string | null, RedisError>
+  readonly get: (key: string) => Effect.Effect<string | null, RedisError>;
   readonly getJSON: <A, I>(
     key: string,
-    schema: Schema.Schema<A, I, never>
-  ) => Effect.Effect<A, RedisError | SchemaValidationError>
-  readonly set: (
-    key: string,
-    value: string,
-    expireSeconds?: number
-  ) => Effect.Effect<'OK', RedisError>
-  readonly setJSON: (
-    key: string,
-    value: unknown,
-    expireSeconds?: number
-  ) => Effect.Effect<'OK', RedisError>
-  readonly del: (...keys: string[]) => Effect.Effect<number, RedisError>
-  readonly exists: (...keys: string[]) => Effect.Effect<number, RedisError>
+    schema: Schema.Schema<A, I, never>,
+  ) => Effect.Effect<A, RedisError | SchemaValidationError>;
+  readonly set: (key: string, value: string, expireSeconds?: number) => Effect.Effect<'OK', RedisError>;
+  readonly setJSON: (key: string, value: unknown, expireSeconds?: number) => Effect.Effect<'OK', RedisError>;
+  readonly del: (...keys: string[]) => Effect.Effect<number, RedisError>;
+  readonly exists: (...keys: string[]) => Effect.Effect<number, RedisError>;
 }
 
 /**
  * Redis service tag for dependency injection
  */
-export const RedisService = Context.GenericTag<RedisService>('RedisService')
+export const RedisService = Context.GenericTag<RedisService>('RedisService');
 
 /**
  * Create a RedisService implementation from an ioredis client
@@ -56,33 +48,32 @@ export const makeRedisService = (client: Redis): RedisService => ({
 
   getJSON: <A, I>(
     key: string,
-    schema: Schema.Schema<A, I, never>
+    schema: Schema.Schema<A, I, never>,
   ): Effect.Effect<A, RedisError | SchemaValidationError> =>
     pipe(
       Effect.tryPromise({
         try: () => client.get(key),
-        catch: (error) =>
-          new RedisConnectionError({ message: `Failed to get key ${key}: ${error}` }),
+        catch: (error) => new RedisConnectionError({ message: `Failed to get key ${key}: ${error}` }),
       }),
       Effect.flatMap((raw): Effect.Effect<unknown, RedisError> => {
         if (raw === null) {
-          return Effect.fail(new RedisKeyNotFound({ key }))
+          return Effect.fail(new RedisKeyNotFound({ key }));
         }
         return Effect.try({
           try: () => JSON.parse(raw),
           catch: (error) => new RedisParseError({ key, raw, error }),
-        })
+        });
       }),
-      Effect.flatMap((parsed) => validateSchema(schema, parsed))
+      Effect.flatMap((parsed) => validateSchema(schema, parsed)),
     ),
 
   set: (key: string, value: string, expireSeconds?: number) =>
     Effect.tryPromise({
       try: async () => {
         if (expireSeconds) {
-          return await client.set(key, value, 'EX', expireSeconds)
+          return await client.set(key, value, 'EX', expireSeconds);
         }
-        return await client.set(key, value)
+        return await client.set(key, value);
       },
       catch: (error) => new RedisWriteError({ key, error }),
     }),
@@ -97,13 +88,13 @@ export const makeRedisService = (client: Redis): RedisService => ({
         Effect.tryPromise({
           try: async () => {
             if (expireSeconds) {
-              return await client.set(key, jsonString, 'EX', expireSeconds)
+              return await client.set(key, jsonString, 'EX', expireSeconds);
             }
-            return await client.set(key, jsonString)
+            return await client.set(key, jsonString);
           },
           catch: (error) => new RedisWriteError({ key, error }),
-        })
-      )
+        }),
+      ),
     ),
 
   del: (...keys: string[]) =>
@@ -115,28 +106,26 @@ export const makeRedisService = (client: Redis): RedisService => ({
   exists: (...keys: string[]) =>
     Effect.tryPromise({
       try: () => client.exists(...keys),
-      catch: (error) =>
-        new RedisConnectionError({ message: `Failed to check existence: ${error}` }),
+      catch: (error) => new RedisConnectionError({ message: `Failed to check existence: ${error}` }),
     }),
-})
+});
 
 /**
  * Create a Layer for the RedisService
  */
-export const RedisServiceLive = (client: Redis) =>
-  Layer.succeed(RedisService, makeRedisService(client))
+export const RedisServiceLive = (client: Redis) => Layer.succeed(RedisService, makeRedisService(client));
 
 /**
  * Specialized Redis operations for OAuth2/PKCE data
  */
 export const createOAuthRedisOps = (service: RedisService) => {
-  const PKCE_PREFIX = 'pkce_session:'
-  const AUTH_CODE_PREFIX = 'auth_code:'
-  const AUTH_CODE_STATE_PREFIX = 'auth_code_state:'
-  const REFRESH_TOKEN_PREFIX = 'refresh_token:'
-  const GOOGLE_TOKEN_PREFIX = 'google_token:' // JTI -> GoogleTokenData
-  const JWT_REFRESH_PREFIX = 'jwt_refresh:' // Our refresh token -> JWTRefreshData
-  const CIMD_METADATA_PREFIX = 'cimd_metadata:' // CIMD client_id URL -> cached CimdMetadata + hash
+  const PKCE_PREFIX = 'pkce_session:';
+  const AUTH_CODE_PREFIX = 'auth_code:';
+  const AUTH_CODE_STATE_PREFIX = 'auth_code_state:';
+  const REFRESH_TOKEN_PREFIX = 'refresh_token:';
+  const GOOGLE_TOKEN_PREFIX = 'google_token:'; // JTI -> GoogleTokenData
+  const JWT_REFRESH_PREFIX = 'jwt_refresh:'; // Our refresh token -> JWTRefreshData
+  const CIMD_METADATA_PREFIX = 'cimd_metadata:'; // CIMD client_id URL -> cached CimdMetadata + hash
 
   return {
     getPKCEState: <A, I>(sessionId: string, schema: Schema.Schema<A, I, never>) =>
@@ -167,14 +156,10 @@ export const createOAuthRedisOps = (service: RedisService) => {
     getRefreshToken: <A, I>(refreshToken: string, schema: Schema.Schema<A, I, never>) =>
       service.getJSON(`${REFRESH_TOKEN_PREFIX}${refreshToken}`, schema),
 
-    setRefreshToken: (
-      refreshToken: string,
-      data: unknown,
-      ttlSeconds: number = 60 * 60 * 24 * 30
-    ) => service.setJSON(`${REFRESH_TOKEN_PREFIX}${refreshToken}`, data, ttlSeconds),
+    setRefreshToken: (refreshToken: string, data: unknown, ttlSeconds: number = 60 * 60 * 24 * 30) =>
+      service.setJSON(`${REFRESH_TOKEN_PREFIX}${refreshToken}`, data, ttlSeconds),
 
-    deleteRefreshToken: (refreshToken: string) =>
-      service.del(`${REFRESH_TOKEN_PREFIX}${refreshToken}`),
+    deleteRefreshToken: (refreshToken: string) => service.del(`${REFRESH_TOKEN_PREFIX}${refreshToken}`),
 
     // New JWT-based operations
     // Store/retrieve Google tokens by JTI (from JWT access token)
@@ -184,7 +169,7 @@ export const createOAuthRedisOps = (service: RedisService) => {
     setGoogleToken: (
       jti: string,
       data: unknown,
-      ttlSeconds: number = 60 * 60 * 24 * 30 // 30 days default
+      ttlSeconds: number = 60 * 60 * 24 * 30, // 30 days default
     ) => service.setJSON(`${GOOGLE_TOKEN_PREFIX}${jti}`, data, ttlSeconds),
 
     deleteGoogleToken: (jti: string) => service.del(`${GOOGLE_TOKEN_PREFIX}${jti}`),
@@ -196,7 +181,7 @@ export const createOAuthRedisOps = (service: RedisService) => {
     setJWTRefresh: (
       refreshToken: string,
       data: unknown,
-      ttlSeconds: number = 60 * 60 * 24 * 90 // 90 days default
+      ttlSeconds: number = 60 * 60 * 24 * 90, // 90 days default
     ) => service.setJSON(`${JWT_REFRESH_PREFIX}${refreshToken}`, data, ttlSeconds),
 
     deleteJWTRefresh: (refreshToken: string) => service.del(`${JWT_REFRESH_PREFIX}${refreshToken}`),
@@ -211,7 +196,6 @@ export const createOAuthRedisOps = (service: RedisService) => {
     setCimdMetadata: (clientIdUrl: string, data: unknown, ttlSeconds: number) =>
       service.setJSON(`${CIMD_METADATA_PREFIX}${clientIdUrl}`, data, ttlSeconds),
 
-    deleteCimdMetadata: (clientIdUrl: string) =>
-      service.del(`${CIMD_METADATA_PREFIX}${clientIdUrl}`),
-  }
-}
+    deleteCimdMetadata: (clientIdUrl: string) => service.del(`${CIMD_METADATA_PREFIX}${clientIdUrl}`),
+  };
+};

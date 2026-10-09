@@ -2,17 +2,17 @@
  * Effect/cli program
  *
  */
-import { Effect, pipe, Schema } from 'effect'
-import { OAuth2ApiService } from './api/oauth2.js'
-import { type ParseError } from './fp/errors.js'
+import { Effect, pipe, Schema } from 'effect';
+import { OAuth2ApiService } from './api/oauth2.js';
+import { type ParseError } from './fp/errors.js';
 
-const uuidRegexp = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/i
-const ClientIdV = pipe(Schema.NonEmptyString, Schema.pattern(uuidRegexp))
+const uuidRegexp = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/i;
+const ClientIdV = pipe(Schema.NonEmptyString, Schema.pattern(uuidRegexp));
 
-type ClientIdV = Schema.Schema.Type<typeof ClientIdV>
+type ClientIdV = Schema.Schema.Type<typeof ClientIdV>;
 const parseClientId = (clientId: string): Effect.Effect<string, ParseError, never> => {
-  return Schema.decode(ClientIdV)(clientId)
-}
+  return Schema.decode(ClientIdV)(clientId);
+};
 
 // class CliService extends Context.Tag("CliService")<
 //   CliService,
@@ -25,11 +25,11 @@ const parseClientId = (clientId: string): Effect.Effect<string, ParseError, neve
 
 export const getClient = (clientId: string) => {
   Effect.gen(function* () {
-    yield* parseClientId(clientId)
-    const client = yield* OAuth2ApiService
-    yield* client.getClient(clientId)
-  })
-}
+    yield* parseClientId(clientId);
+    const client = yield* OAuth2ApiService;
+    yield* client.getClient(clientId);
+  });
+};
 
 // export const createClient = (clientName: string) => {
 //   Effect.gen(function* () {
