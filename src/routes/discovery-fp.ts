@@ -8,8 +8,15 @@
  * app to fetch Hydra's document itself and merge in the extra field —
  * everything else Hydra publishes (registration_endpoint, jwks_uri, etc.)
  * passes through untouched, and DCR keeps working exactly as before.
+ *
+ * `scopes_supported` is the exception. Hydra always lists its built-in
+ * `offline_access`, `offline` and `openid`, and Claude requests every scope
+ * listed here when the protected resource metadata doesn't name any. Our
+ * clients are created without `offline`, so Hydra then rejects the request
+ * with invalid_scope. Advertise the scopes the clients actually carry.
  */
 import { Router } from 'express';
+import { CLIENT_SCOPE } from '../authFlow.js';
 import { appConfig } from '../config.js';
 import { syncLogger } from '../logging-effect.js';
 import type { Request, Response } from 'express';
@@ -41,7 +48,11 @@ export const createDiscoveryRouter = () => {
         cache = { body: hydraDoc, expiresAt: now + CACHE_TTL_MS };
       }
 
-      const merged = appConfig.cimd.enabled ? { ...hydraDoc, client_id_metadata_document_supported: true } : hydraDoc;
+      const merged = {
+        ...hydraDoc,
+        scopes_supported: CLIENT_SCOPE.split(' '),
+        ...(appConfig.cimd.enabled ? { client_id_metadata_document_supported: true } : {}),
+      };
 
       res.set('Cache-Control', 'public, max-age=60');
       res.json(merged);

@@ -29,6 +29,7 @@
     "start:staging": "node --enable-source-maps --watch --env-file=/etc/hydra-headless-ts/hydra.env dist/app-fp.js",
     "start:production": "node --enable-source-maps --watch --env-file=/etc/hydra-headless-ts/hydra.env dist/app-fp.js",
     "test": "vitest run",
+    "test:hydra": "vitest run --config vitest.hydra.config.ts",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",

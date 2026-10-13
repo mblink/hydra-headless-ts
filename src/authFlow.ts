@@ -6,11 +6,19 @@ import { validateCreateClient } from './fp/validation.js';
 import type { CimdMetadata } from './fp/domain.js';
 import type { OAuth2Client as OryOAuth2Client } from '@ory/client-fetch';
 
+/**
+ * The scopes every client this app creates in Hydra is allowed to request.
+ * Hydra's own discovery document also lists its built-in `offline` alias,
+ * which these clients don't carry, so the authorization server metadata
+ * advertises this list instead (see routes/discovery-fp.ts).
+ */
+export const CLIENT_SCOPE = 'openid email profile offline_access';
+
 export const newClient = (clientName: string) => {
   const newClientIn = {
     client_name: clientName,
     grant_types: ['authorization_code', 'refresh_token'],
-    scope: 'openid email profile offline_access',
+    scope: CLIENT_SCOPE,
     response_types: ['code'],
     redirect_uris: [`${appConfig.baseUrl}/callback`, 'https://claude.ai/api/mcp/auth_callback'],
     token_endpoint_auth_method: 'none',
@@ -91,7 +99,7 @@ const toHydraCimdClient = (clientIdUrl: string, metadata: CimdMetadata, contentH
   redirect_uris: [...metadata.redirect_uris],
   grant_types: metadata.grant_types ? [...metadata.grant_types] : ['authorization_code', 'refresh_token'],
   response_types: metadata.response_types ? [...metadata.response_types] : ['code'],
-  scope: metadata.scope ?? 'openid email profile offline_access',
+  scope: metadata.scope ?? CLIENT_SCOPE,
   token_endpoint_auth_method: 'none',
   metadata: { cimd_content_hash: contentHash, cimd_fetched_at: Date.now() },
 });

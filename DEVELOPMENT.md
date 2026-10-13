@@ -182,7 +182,7 @@ Build outputs:
 
 ## CI
 
-- Woodpecker (`.woodpecker.yml`) is the only CI: `npm run ci`, then the Docker image build and push to ECR, then an email to the commit author on failure. There is no GitHub Actions workflow.
+- Woodpecker (`.woodpecker.yml`) is the only CI: `npm run ci`, then `npm run test:hydra` against a real Hydra (the `hydra` service), then the Docker image build and push to ECR, then an email to the commit author on failure. There is no GitHub Actions workflow.
 - To find out why a pipeline failed from the command line, see the `woodpecker-ci` skill (`.claude/skills/woodpecker-ci/SKILL.md`).
 - Woodpecker runs for pushes to `RC` and PRs whose base is `RC`. A PR stacked on another branch gets no checks until it is retargeted to `RC`.
 - PR pipelines run only the tests. The image build and push (`build-and-push`, `when: event: push`) runs only for pushes to `RC`, because a push also moves `:latest`, which deployed hosts pull. So a broken `build/Dockerfile.headless-ts` or an `npm ci` that fails inside the image shows up only after the merge, as a failed `RC` pipeline with a green PR behind it. Run `build/rebuild.sh` locally before merging a change to the image build.

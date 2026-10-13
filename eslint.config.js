@@ -125,8 +125,8 @@ export default [
     },
   },
   {
-    // Test files have different rules
-    files: ['**/*.test.ts', '**/*.spec.ts'],
+    // Test files, and the helpers in src/test/, have different rules
+    files: ['**/*.test.ts', '**/*.spec.ts', 'src/test/**/*.ts'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',

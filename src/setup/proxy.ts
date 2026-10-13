@@ -7,9 +7,9 @@ import { type ClientRequest } from 'http';
 import { Effect, Layer } from 'effect';
 import express from 'express';
 import { createProxyMiddleware, fixRequestBody } from 'http-proxy-middleware';
-import { upsertCimdClient } from '../authFlow.js';
+import { CLIENT_SCOPE, upsertCimdClient } from '../authFlow.js';
 import { appConfig } from '../config.js';
-import { CimdCacheEntrySchema } from '../fp/domain.js';
+import { CimdCacheEntrySchema, PKCEStateSchema } from '../fp/domain.js';
 import { CimdRedirectUriMismatch } from '../fp/errors.js';
 import { cimdContentHash, fetchCimdMetadata, isHttpsUrlClientId } from '../fp/services/cimd.js';
 import { findDisallowedRedirectUri, isRedirectUriAllowed } from '../fp/services/redirectUri.js';
@@ -35,8 +35,16 @@ const AUTHORIZE_PARAMS = [
   'code_challenge_method',
   'scope',
   'state',
+  'login_verifier',
 ] as const;
 type AuthorizeParam = (typeof AUTHORIZE_PARAMS)[number];
+
+// After /login accepts, Hydra sends the browser back to /oauth2/auth: the query this proxy first
+// sent it (no code_challenge, our flow id as state) plus a login_verifier. That continues a flow
+// the first leg already validated and stored, so it goes to Hydra unchanged. There is no
+// consent_verifier leg: /consent sends the browser to Google, and /callback finishes the flow.
+const isLoginReturn = (query: URLSearchParams | Partial<Record<AuthorizeParam, string>>): boolean =>
+  query instanceof URLSearchParams ? query.has('login_verifier') : query.login_verifier !== undefined;
 
 // BASE64URL(SHA-256(verifier)) is always 43 characters without padding
 const S256_CHALLENGE = /^[A-Za-z0-9_-]{43}$/;
@@ -99,6 +107,9 @@ const proxyOptions = {
   pathRewrite: async (path: string, req: Request) => {
     const parsed = new URL(`${req.protocol}://${req.get('host')}${req.originalUrl}`);
     if (parsed.pathname === '/oauth2/auth') {
+      if (isLoginReturn(parsed.searchParams)) {
+        return `${parsed.pathname}${parsed.search}`;
+      }
       const flowId = flowIds.get(req);
       if (!flowId) {
         throw new Error('/oauth2/auth reached the proxy without a stored flow');
@@ -258,8 +269,9 @@ const enhancedProxyMiddleware = async (req: Request, res: Response, next: NextFu
         error_description: `${repeatedParam} must be given exactly once`,
       });
     }
-    const { client_id, redirect_uri, response_type, code_challenge, code_challenge_method, scope, state } =
-      req.query as Partial<Record<AuthorizeParam, string>>;
+    const query = req.query as Partial<Record<AuthorizeParam, string>>;
+    const { client_id, redirect_uri, response_type, code_challenge, code_challenge_method, scope, state } = query;
+    const returning = isLoginReturn(query);
 
     // Fatal validation errors that should return 400
     const missingParams: string[] = [];
@@ -271,10 +283,10 @@ const enhancedProxyMiddleware = async (req: Request, res: Response, next: NextFu
     if (!response_type) missingParams.push('response_type');
     // The token endpoint checks the verifier against the stored challenge, and the callback
     // returns the client's state, so the flow can't finish without either
-    if (!code_challenge) missingParams.push('code_challenge');
+    if (!code_challenge && !returning) missingParams.push('code_challenge');
     if (!state) missingParams.push('state');
 
-    if (!client_id || !redirect_uri || !response_type || !code_challenge || !state) {
+    if (missingParams.length > 0 || !client_id || !redirect_uri || !response_type || !state) {
       syncLogger.error('=== OAUTH2 AUTH ERROR: Missing Parameters ===', {
         missingParams,
         query: req.query,
@@ -309,6 +321,35 @@ const enhancedProxyMiddleware = async (req: Request, res: Response, next: NextFu
       });
     }
 
+    if (returning) {
+      // Hydra checks the verifier; this checks the leg continues a flow this browser started here
+      const flow = await Effect.runPromise(
+        Effect.either(
+          Effect.provide(
+            Effect.flatMap(RedisService, (redis) => createOAuthRedisOps(redis).getPKCEState(state, PKCEStateSchema)),
+            redisLayer,
+          ),
+        ),
+      );
+      if (
+        flow._tag === 'Left' ||
+        flow.right.session_id !== req.session.id ||
+        flow.right.client_id !== client_id ||
+        flow.right.redirect_uri !== redirect_uri
+      ) {
+        syncLogger.warn('=== OAUTH2 AUTH ERROR: login return does not match a stored flow ===', {
+          client_id,
+          reason: flow._tag === 'Left' ? flow.left._tag : 'session, client_id or redirect_uri differs',
+        });
+        return res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'Authorization request not found or expired',
+        });
+      }
+      syncLogger.info('Forwarding the return from login to Hydra unchanged', { client_id });
+      return next();
+    }
+
     // RFC 7636 makes a missing method mean plain, which leaves the verifier in the front channel
     if (code_challenge_method !== 'S256') {
       return res.status(400).json({
@@ -316,7 +357,7 @@ const enhancedProxyMiddleware = async (req: Request, res: Response, next: NextFu
         error_description: 'code_challenge_method must be S256',
       });
     }
-    if (!S256_CHALLENGE.test(code_challenge)) {
+    if (!code_challenge || !S256_CHALLENGE.test(code_challenge)) {
       return res.status(400).json({
         error: 'invalid_request',
         error_description: 'code_challenge must be a base64url-encoded SHA-256 hash',
@@ -390,6 +431,12 @@ const enhancedProxyMiddleware = async (req: Request, res: Response, next: NextFu
         });
         return res.status(400).json({ error: 'invalid_redirect_uri', error_description: rejected });
       }
+    }
+    // Hydra gives a client registered without a scope its own default, `offline_access offline
+    // openid`, which can't request the email and profile scopes the protected resources and the
+    // discovery document advertise. Register it with the scopes every other client gets.
+    if (req.method === 'POST' && req.body && typeof req.body === 'object' && !req.body.scope) {
+      req.body.scope = CLIENT_SCOPE;
     }
     syncLogger.info('=== OAUTH2 CLIENT REGISTRATION ENDPOINT ===', {
       method: req.method,
