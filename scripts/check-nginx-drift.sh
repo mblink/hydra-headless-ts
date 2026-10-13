@@ -276,13 +276,56 @@ EOF
   status=1
 fi
 
+# Not drift, but checked here because this is the one script that reads the staging render. nginx
+# listens on plain 8888 behind HAProxy, so $scheme is http there. A location that proxies to the
+# app and sets X-Forwarded-Proto to it makes the app think the request is http, and express-session
+# then silently drops the Secure session cookie: the login return and /callback fail with
+# "Authorization request not found or expired" (STAGING_TROUBLESHOOTING.md, App startup and
+# sessions). Only the reference is checked; dev has no HAProxy and is http throughout (T4).
+scheme_to_app() {
+  awk '
+    { line = $0; sub(/#.*/, "", line); gsub(/^[ \t]+|[ \t]+$/, "", line); gsub(/[ \t]+/, " ", line) }
+    line == "" { next }
+    { o = gsub(/\{/, "{", line); c = gsub(/\}/, "}", line) }
+    line ~ /^location / && o > 0 {
+      loc = line; sub(/^location /, "", loc); sub(/ *\{.*$/, "", loc)
+      loc_depth = depth; app = 0; xfp = ""; depth += o - c; next
+    }
+    loc != "" && line ~ /^proxy_pass http:\/\/hydra-headless-ts[\/;]/ { app = 1 }
+    loc != "" && tolower(line) ~ /^proxy_set_header x-forwarded-proto / { xfp = line; sub(/^[^ ]+ [^ ]+ /, "", xfp); sub(/;$/, "", xfp) }
+    {
+      depth += o - c
+      if (loc != "" && depth <= loc_depth) {
+        if (app && xfp != "" && xfp != "$http_x_forwarded_proto" && xfp != "https") printf "  location %s: X-Forwarded-Proto %s\n", loc, xfp
+        loc = ""
+      }
+    }
+  ' "$1"
+}
+
+bad_proto=$(scheme_to_app "$REF")
+if [ -n "$bad_proto" ]; then
+  printf '\n[%s] the staging reference sends the app an X-Forwarded-Proto other than HAProxy'"'"'s\n' "$(red SCHEME)"
+  printf '%s\n' "$bad_proto"
+  cat <<'EOF'
+Behind HAProxy this is http, so the app drops its Secure session cookie and sign-in fails. Set
+`proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;` in the Salt template, then refresh
+the reference.
+EOF
+  status=1
+else
+  printf '[%s] every location proxying to the app forwards HAProxy'"'"'s X-Forwarded-Proto\n' "$(green OK)"
+fi
+
 cat <<'EOF'
 
 intentionally not compared (see T1-T8 in the dev conf header):
   listen proxy_protocol / default_server  no HAProxy in dev
   server_name                             environment-specific hostnames
   upstream server addresses               compose DNS vs the VPC address
-  Host / X-Forwarded-Proto values         no HAProxy to set them
+  Host / X-Forwarded-Proto values         no HAProxy to set them (but see the
+                                           X-Forwarded-Proto check above, on the
+                                           reference alone)
   $host vs $http_host, https vs $scheme   dev is http on a non-default port
   locations /hostname, /hostname.html     HAProxy ops URLs, no local equivalent
   named mariadb-mcp instance identity     collapsed to one "NAMED" placeholder

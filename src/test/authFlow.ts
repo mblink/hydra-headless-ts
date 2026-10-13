@@ -51,11 +51,19 @@ export interface HydraEndpoints {
   adminPort: number;
 }
 
-/**
- * Listen first, so the app's own URL is known before its configuration is read. Pass a fixed
- * port when Hydra has to be configured with the app's URL ahead of time.
- */
-export const startApp = async (hydra: HydraEndpoints, port = 0) => {
+interface AppOptions {
+  /** Pass a fixed port when Hydra has to be configured with the app's URL ahead of time */
+  port?: number;
+  /**
+   * Configure the app as staging and prod run it, with an https BASE_URL and so a Secure session
+   * cookie. The app still listens on http, as it does behind HAProxy and nginx, so it only sees
+   * https through X-Forwarded-Proto (see runAuthorizationFlow's forwardedProto).
+   */
+  behindTlsProxy?: boolean;
+}
+
+/** Listen first, so the app's own URL is known before its configuration is read */
+export const startApp = async (hydra: HydraEndpoints, { port = 0, behindTlsProxy = false }: AppOptions = {}) => {
   const server = createServer();
   await new Promise<void>((resolve) => server.listen(port, '127.0.0.1', resolve));
   const appUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -66,7 +74,7 @@ export const startApp = async (hydra: HydraEndpoints, port = 0) => {
   process.env = {
     ...process.env,
     APP_ENV: 'staging',
-    BASE_URL: appUrl,
+    BASE_URL: behindTlsProxy ? appUrl.replace(/^http:/, 'https:') : appUrl,
     SESSION_SECRET: 'test-session-secret',
     COOKIE_SECRET: 'test-cookie-secret',
     PRIVATE_HOST: hydra.host,
@@ -88,8 +96,11 @@ export const startApp = async (hydra: HydraEndpoints, port = 0) => {
   };
 };
 
-/** A browser's cookie jar and redirect handling, recording every hop for failure messages */
-const createBrowser = () => {
+/**
+ * A browser's cookie jar and redirect handling, recording every hop for failure messages.
+ * `headers` go on every request, for what a proxy in front of the app would add.
+ */
+const createBrowser = (extraHeaders: Record<string, string> = {}) => {
   const cookies = new Map<string, Map<string, string>>();
   const hops: string[] = [];
 
@@ -98,6 +109,7 @@ const createBrowser = () => {
     const jar = cookies.get(origin) ?? new Map<string, string>();
     cookies.set(origin, jar);
     const headers = new Headers(init.headers);
+    Object.entries(extraHeaders).forEach(([name, value]) => headers.set(name, value));
     if (jar.size > 0) {
       headers.set('cookie', [...jar].map(([name, value]) => `${name}=${value}`).join('; '));
     }
@@ -124,12 +136,24 @@ export interface FlowResult {
   hops: string[];
 }
 
+interface FlowOptions {
+  /**
+   * The X-Forwarded-Proto nginx sends the app on every request. Behind HAProxy it must pass on
+   * https; nginx's own $scheme there is http.
+   */
+  forwardedProto?: 'http' | 'https';
+}
+
 /**
  * Run the authorization code flow for `clientId` and exchange the code. Throws, with every hop,
  * if the browser lands anywhere other than a redirect before reaching Claude's redirect_uri.
  */
-export const runAuthorizationFlow = async (appUrl: string, clientId: string): Promise<FlowResult> => {
-  const browser = createBrowser();
+export const runAuthorizationFlow = async (
+  appUrl: string,
+  clientId: string,
+  { forwardedProto }: FlowOptions = {},
+): Promise<FlowResult> => {
+  const browser = createBrowser(forwardedProto ? { 'x-forwarded-proto': forwardedProto } : {});
 
   // Claude requests every scope the authorization server advertises
   const discovery = await browser.request(`${appUrl}/.well-known/oauth-authorization-server`);
@@ -197,8 +221,8 @@ export const runAuthorizationFlow = async (appUrl: string, clientId: string): Pr
 };
 
 /** Run the flow for `clientId` and check Claude gets a code it can exchange for a token */
-export const expectCompletedFlow = async (appUrl: string, clientId: string) => {
-  const result = await runAuthorizationFlow(appUrl, clientId);
+export const expectCompletedFlow = async (appUrl: string, clientId: string, options?: FlowOptions) => {
+  const result = await runAuthorizationFlow(appUrl, clientId, options);
 
   expect(
     result.callback.get('error'),

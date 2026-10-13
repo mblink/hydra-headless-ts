@@ -47,6 +47,11 @@ captured from a staging host. **Refresh it whenever the Salt template changes**,
 using the scp line in its own header. A stale baseline is this check's only blind
 spot, so the script prints the file's capture date on every run.
 
+The same script also checks the reference on its own: every location that proxies
+to the app must forward HAProxy's `X-Forwarded-Proto` (`$http_x_forwarded_proto`),
+not nginx's `$scheme`, which is `http` behind HAProxy. With `$scheme` the app never
+sets its `Secure` session cookie and sign-in fails at the return from `/login`.
+
 ## Known dev/staging differences beyond T1–T9
 
 - The `.well-known/oauth-protected-resource/*` documents under `www/` are written
