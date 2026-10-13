@@ -3,16 +3,16 @@
 # (for a gated resource) the bearer gate -> a mariadb-mcp session -> a query
 # against a named database.
 #
-# Only bare /db-tools (the default instance) is ungated. Every named instance
-# -- one per servers-pillar node flagged mcp_auth_db: true on real infra, e.g.
-# /db-tools/example locally -- sits behind the same auth_request gate dbhub's
-# /db-compare used to. Pass --gated for those; the default resource stays
-# ungated unless you say so.
+# Every instance sits behind the auth_request gate: bare /db-tools (the default
+# instance) and each named one -- one per servers-pillar node flagged
+# mcp_auth_db: true on real infra, e.g. /db-tools/example locally. A resource's
+# name is its path, as salt renders it: db-tools, db-tools/example. A bare
+# named-instance name (example) is accepted and means db-tools/example.
 #
-#   scripts/validate-mcp-path.sh --local                            # default, ungated
-#   scripts/validate-mcp-path.sh --local --resource example --gated --token "$TOK"
+#   scripts/validate-mcp-path.sh --local --token "$TOK"               # db-tools
+#   scripts/validate-mcp-path.sh --local --resource example --token "$TOK"
 #   scripts/validate-mcp-path.sh --local \
-#     --resources db-tools,example:gated --token "$TOK"              # both in one run
+#     --resources db-tools,example --token "$TOK"                    # both in one run
 #
 # Exit status is 0 only if every stage that ran passed. Skipped stages do not
 # fail the run, but the summary says what was skipped so a green result cannot be
@@ -20,7 +20,7 @@
 set -uo pipefail
 
 RESOURCE="db-tools"
-GATED=0
+GATED=1
 RESOURCES_ARG=""
 BASE_URL="${MCP_BASE_URL:-${BASE_URL:-}}"
 TOKEN="${MCP_TOKEN:-}"
@@ -48,12 +48,14 @@ Options:
                      :9001 directly. For a stack running without the nginx
                      service. The gate stage is reported SKIP (nothing to gate).
   --direct-mcp URL   mariadb-mcp endpoint, bypassing nginx (isolates the DB leg)
-  --resource NAME    protected resource to check (default: db-tools)
-  --gated            this resource sits behind auth_request (default instance
-                     bare db-tools does not; every named source does)
-  --resources LIST   comma-separated NAME or NAME:gated entries; validates all
-                     of them in one run with one aggregated summary. Overrides
-                     --resource/--gated.
+  --resource NAME    protected resource to check (default: db-tools); example
+                     means db-tools/example
+  --gated            the resource sits behind auth_request (the default, as
+                     every instance does on staging and prod)
+  --ungated          the resource has no auth_request in front of it
+  --resources LIST   comma-separated NAME, NAME:gated or NAME:ungated entries
+                     (gated by default); validates all of them in one run with
+                     one aggregated summary. Overrides --resource/--gated.
   --token TOKEN|-    bearer token for a --gated resource; "-" reads one line
                      from stdin. Ignored for ungated resources.
   --database NAME    database to query (default: first result of list_databases)
@@ -73,6 +75,7 @@ while [ $# -gt 0 ]; do
     --direct-mcp) DIRECT_MCP="$2"; DIRECT_MCP_EXPLICIT=1; shift 2 ;;
     --resource) RESOURCE="$2"; shift 2 ;;
     --gated) GATED=1; shift ;;
+    --ungated) GATED=0; shift ;;
     --resources) RESOURCES_ARG="$2"; shift 2 ;;
     --token)
       if [ "$2" = "-" ]; then IFS= read -r TOKEN; else TOKEN="$2"; fi
@@ -171,16 +174,16 @@ rpc() { printf '{"jsonrpc":"2.0","id":%s,"method":"%s","params":%s}' "$1" "$2" "
 # --- per-resource check ------------------------------------------------------
 #
 # Runs stages 1-4 against one resource. gated=1 adds the bearer-gate stage and
-# threads $TOKEN through the MCP session; gated=0 matches bare /db-tools, which
-# has no auth_request in front of it at all.
+# threads $TOKEN through the MCP session; gated=0 is for a resource with no
+# auth_request in front of it.
 check_resource() {
   local resource="$1" gated="$2"
-  # The bare default instance lives at /db-tools; every named source (which is
-  # what "gated" always means here) lives at /db-tools/<name>. The resource
-  # name itself (used for the allowlist file, X-MCP-Resource, and the
-  # well-known document) stays short either way -- only the URL path differs.
-  local path
-  if [ "$resource" = "db-tools" ]; then path="db-tools"; else path="db-tools/${resource}"; fi
+  # The default instance lives at /db-tools and every named one at
+  # /db-tools/<name>. The resource name is that path, as salt renders it: it
+  # names the allowlist file (allowed_emails_<resource>.txt), X-MCP-Resource
+  # and the well-known document.
+  [ "$resource" = "db-tools" ] || resource="db-tools/${resource#db-tools/}"
+  local path="$resource"
 
   printf '\n=== %s %s===\n' "$resource" "$([ "$gated" -eq 1 ] && echo '(gated) ')"
 
@@ -424,11 +427,11 @@ declare -a run_list=()
 if [ -n "$RESOURCES_ARG" ]; then
   IFS=',' read -ra entries <<< "$RESOURCES_ARG"
   for e in "${entries[@]}"; do
-    if [ "${e##*:}" = "gated" ]; then
-      run_list+=("${e%%:*}:1")
-    else
-      run_list+=("${e}:0")
-    fi
+    case "$e" in
+      *:ungated) run_list+=("${e%%:*}:0") ;;
+      *:gated) run_list+=("${e%%:*}:1") ;;
+      *) run_list+=("${e}:1") ;;
+    esac
   done
 else
   run_list=("${RESOURCE}:${GATED}")

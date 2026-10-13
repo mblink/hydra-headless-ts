@@ -25,7 +25,8 @@ MAP=(
   "build/support_files/mariadb-mcp/mariadb-mcp-example.env:mariadb-mcp-example.env"
   "build/support_files/hydra/hydra.local.yml:hydra.yml"
   "build/support_files/hydra-headless-ts/local.env.sample:local.env"
-  "build/support_files/hydra-headless-ts/allowed_emails_example.txt:allowed_emails_example.txt"
+  "build/support_files/hydra-headless-ts/allowed_emails_db-tools.txt:allowed_emails_db-tools.txt"
+  "build/support_files/hydra-headless-ts/allowed_emails_db-tools/example.txt:allowed_emails_db-tools/example.txt"
 )
 
 copied=0
@@ -48,6 +49,8 @@ for entry in "${MAP[@]}"; do
   fi
 
   if [ ! -e "$dst" ]; then
+    # A named resource's allowlist is allowed_emails_db-tools/<name>.txt, as salt writes it
+    mkdir -p "$(dirname "$dst")"
     cp "$src" "$dst"
     echo "copied   ${entry##*:}"
     copied=$((copied + 1))
@@ -91,9 +94,10 @@ Still manual after this:
      cannot, so a wrong value shows up immediately rather than on first query.
      Same for ${DEST}/mariadb-mcp-example.env -- it's a second, independent
      instance/connection, not a copy of the first.
-  4. Add your address to ${DEST}/allowed_emails_example.txt.
-     Unlike bare /db-tools, /db-tools/example IS gated -- a missing or empty
-     per-resource list denies everyone.
+  4. Add your address to ${DEST}/allowed_emails_db-tools.txt and
+     ${DEST}/allowed_emails_db-tools/example.txt. /db-tools and
+     /db-tools/example are both gated -- a missing or empty per-resource list
+     denies everyone.
   5. scripts/dev-register-client.sh   (needs hydra running; sets AUTH_FLOW_CLIENT_ID)
 
 Then: docker compose -f docker-compose.yml -f docker-compose.mariadb-mcp.dev.yml up -d

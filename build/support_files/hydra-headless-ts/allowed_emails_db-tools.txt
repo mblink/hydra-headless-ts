@@ -1,9 +1,8 @@
-# DEV SAMPLE -> copy to /etc/hydra-headless-ts/allowed_emails_example.txt
+# DEV SAMPLE -> copy to /etc/hydra-headless-ts/allowed_emails_db-tools.txt
 #
-# Per-resource allowlist for `example` -- the one named, gated mariadb-mcp
-# instance carried for local dev (docker-compose.mariadb-mcp.dev.yml's
-# mariadb-mcp-example service, at /db-tools/example). Point its DB_HOST at
-# whatever database you have locally; it's a template, not a specific node.
+# Per-resource allowlist for `db-tools` -- the default mariadb-mcp instance, at
+# /db-tools. It's gated like every named instance, as on staging and prod (salt
+# fills it with the base addresses plus the per-database ones).
 # Checked *in addition to* allowed_emails.txt, never instead of it -- an address
 # must pass both, so removing someone from the global list revokes every
 # resource.

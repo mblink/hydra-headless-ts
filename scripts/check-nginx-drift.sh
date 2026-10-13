@@ -23,7 +23,7 @@ REF="${REPO}/build/nginx/reference/hydra.conf.staging.example"
 # Locations that legitimately exist only in the staging render. Carried as an
 # explicit list so their reappearance in dev, or disappearance from staging, is
 # still reported.
-EXPECTED_ONLY_IN_REFERENCE='^loc=(/hostname|/hostname\.html)\|'
+EXPECTED_ONLY_IN_REFERENCE='^loc=(/hostname|/hostname\.html|= /_discovery_upstream)\|'
 
 for f in "$DEV" "$REF"; do
   [ -r "$f" ] || { echo "error: missing $f" >&2; exit 2; }
@@ -54,8 +54,21 @@ fi
 # healthcheck: $mcp_tools_healthcheck_upstream, a named source:
 # $mcp_tools_<name>_upstream with underscores for hyphens), so this discovers
 # whichever variables the file actually uses rather than hardcoding two names.
+# T10: with pillar hide_dcr (staging only), discovery is served by
+# discovery_filter.hide_dcr, which fetches the document through an internal
+# /_discovery_upstream location. Compare it as a plain proxy_pass to that
+# location's upstream, which is what dev does directly, and drop the internal
+# location (EXPECTED_ONLY_IN_REFERENCE).
+discovery_upstream() {
+  awk '/location = \/_discovery_upstream/ { f = 1 }
+       f && /proxy_pass/ { sub(/.*http:\/\//, ""); sub(/[\/;].*/, ""); print; exit }' "$1"
+}
+
 normalize() {
-  sed -e '/^[ \t]*resolver /d' "$1" | awk '
+  local disc
+  disc="$(discovery_upstream "$1")"
+  sed -e '/^[ \t]*resolver /d' \
+      -e "s|js_content discovery_filter.hide_dcr;|proxy_pass http://${disc:-UNKNOWN};|" "$1" | awk '
     function derive_name(v,    suffix, name) {
       suffix = v
       sub(/^\$mcp_tools_/, "", suffix)
@@ -134,22 +147,27 @@ collapse_named_instances() {
     }
     skiploc && /^  \}$/ { skiploc = 0; next }
     skiploc { next }
-    /^  location = \/\.well-known\/oauth-protected-resource\/[A-Za-z0-9_-]+ \{/ {
-      n = $0; sub(/^  location = \/\.well-known\/oauth-protected-resource\//, "", n); sub(/ \{.*/, "", n)
-      if (n != "db-tools" && !is_first(n)) { skipwk = 1; next }
+    # A named instance publishes its metadata at
+    # /.well-known/oauth-protected-resource/db-tools/<name>.
+    /^  location = \/\.well-known\/oauth-protected-resource\/db-tools\/[A-Za-z0-9_-]+ \{/ {
+      n = $0; sub(/^  location = \/\.well-known\/oauth-protected-resource\/db-tools\//, "", n); sub(/ \{.*/, "", n)
+      if (!is_first(n)) { skipwk = 1; next }
     }
     skipwk && /^  \}$/ { skipwk = 0; next }
     skipwk { next }
-    /^  ~\^\/db-tools\/[A-Za-z0-9_-]+ / {
-      n = $0; sub(/^  ~\^\/db-tools\//, "", n); sub(/ .*/, "", n)
+    # Map entries, either the old prefix form (~^/db-tools/<name> "...") or the
+    # anchored one (~^/db-tools/<name>/?(\?|$) "...")
+    /^  ~\^\/db-tools\/[A-Za-z0-9_-]+[\/ ]/ {
+      n = $0; sub(/^  ~\^\/db-tools\//, "", n); sub(/[\/ ].*/, "", n)
       if (!is_first(n)) next
     }
     {
       if (first != "") {
         gsub("mcp-tools-" first, "mcp-tools-NAMED")
-        gsub("/db-tools/" first, "/db-tools/NAMED")
-        gsub("oauth-protected-resource/" first, "oauth-protected-resource/NAMED")
-        gsub("\"" first "\"", "\"NAMED\"")
+        # the path, the resource name in the map, and the metadata location
+        gsub("db-tools/" first, "db-tools/NAMED")
+        # the metadata file (db-tools_<name>.json)
+        gsub("db-tools_" first, "db-tools_NAMED")
       }
       print
     }
@@ -185,7 +203,9 @@ extract() {
     # The map that assigns $mcp_resource decides which paths are gated, so it is
     # compared rather than ignored: a resource silently dropping out of it
     # disables that gate just as effectively as removing auth_request.
-    /^map .*\$mcp_resource/ && o > 0 { flush(); inmap=1; depth += o - c; next }
+    # Only the map that defines $mcp_resource, not maps keyed on it (the HAProxy
+    # health-check bypass, T11)
+    /^map \$request_uri \$mcp_resource / && o > 0 { flush(); inmap=1; depth += o - c; next }
     inmap == 1 {
       depth += o - c
       if (depth == 0) { inmap = 0; next }
@@ -249,7 +269,8 @@ extract() {
 echo "dev       : ${DEV#$REPO/}"
 echo "reference : ${REF#$REPO/}"
 # A stale baseline is this check's one blind spot, so make its age visible.
-echo "            captured $(date -r "$REF" '+%Y-%m-%d %H:%M' 2>/dev/null || echo 'unknown')"
+# From the reference's header: the file's mtime is reset by every checkout
+echo "            captured $(sed -n 's/^# Captured .* on \([0-9-]*\)\.$/\1/p' "$REF" | head -1 | grep . || echo 'unknown (no "Captured ... on <date>." line in its header)')"
 echo
 
 d=$(mktemp); r=$(mktemp)
@@ -270,7 +291,7 @@ change from /src/salt/salt/hydra-headless-ts/etc/nginx/conf.d/hydra.conf into
 build/nginx/dev/conf.d/hydra.conf.
 
 A line only under "dev" means the opposite -- either dev gained something that
-belongs in salt, or the reference render is stale. Refresh it with the scp
+belongs in salt, or the reference render is stale. Refresh it with the ssh
 command in that file's header before assuming the former.
 EOF
   status=1
@@ -317,6 +338,17 @@ else
   printf '[%s] every location proxying to the app forwards HAProxy'"'"'s X-Forwarded-Proto\n' "$(green OK)"
 fi
 
+# Hydra's admin API has no authentication of its own, so neither file may route anything to it.
+# The app reaches it directly on the VPC (HYDRA_ADMIN_HOST).
+admin_routes=$(grep -nE 'proxy_pass[[:space:]]+http://(admin_api|[^;/]*:4445)' "$REF" "$DEV")
+if [ -n "$admin_routes" ]; then
+  printf '\n[%s] a location proxies to Hydra'"'"'s admin API, which has no authentication\n' "$(red ADMIN)"
+  printf '%s\n' "$admin_routes" | sed "s#^${REPO}/#  #"
+  status=1
+else
+  printf '[%s] nothing is routed to Hydra'"'"'s admin API\n' "$(green OK)"
+fi
+
 cat <<'EOF'
 
 intentionally not compared (see T1-T8 in the dev conf header):
@@ -328,6 +360,11 @@ intentionally not compared (see T1-T8 in the dev conf header):
                                            reference alone)
   $host vs $http_host, https vs $scheme   dev is http on a non-default port
   locations /hostname, /hostname.html     HAProxy ops URLs, no local equivalent
+  discovery_filter.js, /_discovery_upstream  staging's hide_dcr test toggle (T10);
+                                           compared as the proxy_pass it wraps
+  HAProxy health-check bypass in /_authz  no HAProxy in dev (T11); `if` blocks
+                                           and the geo/maps behind it are not
+                                           compared
   named mariadb-mcp instance identity     collapsed to one "NAMED" placeholder
                                            on both sides (see
                                            collapse_named_instances above) --
