@@ -1,5 +1,5 @@
 {
-  "resource": "http://localhost:8888/db-tools/staging-db-galera-prime",
+  "resource": "http://localhost:8888/db-tools/example",
   "authorization_servers": [
     "http://localhost:8888",
     "https://accounts.google.com/o/oauth2/auth"

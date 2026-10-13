@@ -34,10 +34,10 @@ Both report per-item PASS / FAIL / SKIP and exit non-zero on failure, and the
 summary lists every skip, so a green run can't be mistaken for full coverage.
 
 ```bash
-scripts/validate-mcp-path.sh --local                            # bare /db-tools, ungated
-scripts/validate-mcp-path.sh --local --resource example --gated --token "$TOK"
+scripts/validate-mcp-path.sh --local --token "$TOK"               # /db-tools
+scripts/validate-mcp-path.sh --local --resource example --token "$TOK"
 scripts/validate-mcp-path.sh --local \
-  --resources db-tools,example:gated --token "$TOK"              # both in one run
+  --resources db-tools,example --token "$TOK"                    # both in one run
 npm run check:nginx-drift
 ```
 
@@ -66,9 +66,10 @@ Manual steps stay manual, and the bootstrap prints all of them:
 3. Set `mariadb-mcp.env`'s `DB_PASSWORD` and point `DB_HOST` at a database you
    can reach. Same for `mariadb-mcp-example.env` — it's a
    second, independent connection, not a copy of the first.
-4. Add your address to `allowed_emails_example.txt`. Unlike
-   bare `/db-tools`, the named path IS gated — a missing or empty per-resource
-   list denies everyone.
+4. Add your address to `allowed_emails_db-tools.txt` and
+   `allowed_emails_db-tools/example.txt`. `/db-tools` and `/db-tools/example`
+   are both gated, as on staging — a missing or empty per-resource list denies
+   everyone.
 
 ## What each stage actually proves
 
@@ -76,15 +77,14 @@ Manual steps stay manual, and the bootstrap prints all of them:
 |---|---|
 | 1. discovery | nginx → Hydra works, and the `.well-known` documents mount correctly |
 | 2. CORS preflight | `options_request`'s relative `include cors_headers;` resolved inside the container |
-| 3. the gate (`--gated` only) | unauthenticated access to a named `/db-tools/<name>` is **refused**, with a challenge a client can follow |
+| 3. the gate (gated resources, the default) | unauthenticated access to `/db-tools` or `/db-tools/<name>` is **refused**, with a challenge a client can follow |
 | 4. MCP session | mariadb-mcp speaks MCP and advertises its tools (`execute_sql`, `list_databases`, ...) |
 | 5. query | mariadb-mcp actually reaches a configured MariaDB |
 
-Bare `/db-tools` has no `auth_request` gate, so a run against it (no `--gated`)
-proves routing/CORS/MCP/DB work but nothing about authentication. Pass
-`--gated --token "$TOK"` against a named resource to also prove the gate
-itself: stage 3 checks the unauthenticated 401 + challenge, and stage 4 needs
-the token to get past it.
+Every resource is gated, `/db-tools` included, as on staging. Stage 3 checks
+the unauthenticated 401 and its challenge, and stage 4 needs `--token "$TOK"`
+to get past the gate. Without a token, stage 4 is skipped. `--ungated` is for a
+resource with no `auth_request` in front of it.
 
 ## Known state on a fresh workstation
 
@@ -131,7 +131,7 @@ at startup, well before stage 4's MCP session runs.
 | a redirect loses the port | T4 regression — `$host` strips it, `$http_host` doesn't |
 | `open() "/etc/nginx/cors_headers" failed` | a bind-mount path was wrong, so Docker created a **directory** there |
 | stage 5 tool error | mariadb-mcp reached, database not (or the wrong database name). Check `DB_PASSWORD`/`DB_HOST` in that instance's env file |
-| `/db-tools/<name>` → 403 with a token that `validate-token` accepts | your address is not in `allowed_emails_<name>.txt`, or the file is missing (deny-all). The token verified fine — this is authorization, not authentication |
+| `/db-tools` or `/db-tools/<name>` → 403 with a token that `validate-token` accepts | your address is not in `allowed_emails_db-tools.txt` or `allowed_emails_db-tools/<name>.txt`, or the file is missing (deny-all). The token verified fine — this is authorization, not authentication |
 
 ## Isolating a leg
 
@@ -140,7 +140,7 @@ at startup, well before stage 4's MCP session runs.
 scripts/validate-mcp-path.sh --local --direct-mcp http://localhost:9001/mcp
 
 # same, for the named instance (its own published port, per docker-compose.mariadb-mcp.dev.yml)
-scripts/validate-mcp-path.sh --local --resource example --gated \
+scripts/validate-mcp-path.sh --local --resource example \
   --direct-mcp http://localhost:9010/mcp
 
 # the pre-nginx layout (app on :3000, mariadb-mcp on :9001 directly)
@@ -188,7 +188,7 @@ separately.
 |---|---|---|
 | 8888 | nginx | the entry point; everything should be tested through here |
 | 3000 | headless-ts | |
-| 9001 | mariadb-mcp (default instance) | not gated either way; needed for `--direct-mcp` |
+| 9001 | mariadb-mcp (default instance) | gated at `/db-tools`; port itself bypasses the gate, needed for `--direct-mcp` |
 | 9010 | mariadb-mcp-example | gated at `/db-tools/example`; port itself bypasses the gate, needed for `--direct-mcp` |
 | 4444/4445 | hydra public / admin | |
 

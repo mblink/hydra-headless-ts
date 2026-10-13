@@ -1,100 +1,97 @@
 # Rendered by salt from salt/hydra-headless-ts/etc/nginx/conf.d/hydra.conf.
-# Captured from the staging host's /etc/nginx/conf.d/hydra.conf on 2026-08-03.
+# Captured from the staging host's /etc/nginx/conf.d/hydra.conf on 2026-10-13.
 #
 # NOT mounted anywhere. This is the baseline for scripts/check-nginx-drift.sh,
 # which compares it against build/nginx/dev/conf.d/hydra.conf. Refresh with:
-#   ssh <staging-host> cat /etc/nginx/conf.d/hydra.conf \
-#     > build/nginx/reference/hydra.conf.staging.example
+#   ssh <staging-host> cat /etc/nginx/conf.d/hydra.conf > /tmp/hydra.conf.staging
+# then replace everything below this header with it, and update the date above.
 #
 # A stale baseline is the one failure mode of the drift check, so the script
-# prints this file's mtime on every run.
-#
-# NOTE: the `map $request_uri $mcp_resource` block below, and the removal of the
-# two `set $mcp_resource` lines it replaces, were applied BY HAND to match the
-# salt template change (auth_request wipes a `set` in the subrequest). Everything
-# else is still the verbatim capture. Re-capture from a staging host once that
-# template change is deployed, and this note can go.
-#
-# NOTE: the dbhub upstream, its map entry, and both `/db-compare` locations were
-# also removed BY HAND ahead of the matching change in the salt repo (out of
-# scope here -- dbhub is being dropped from hydra-headless-ts only). Re-capture
-# from a staging host once that change ships, and this note can go too.
-#
-# NOTE: the mcp-tools-staging-db-galera-prime upstream, its map entry, its
-# well-known location and its gated /db-tools/staging-db-galera-prime location
-# were also added BY HAND ahead of the matching salt pillar/state change
-# (pillar mariadb-mcp:sources, synthesized into backend_mappings -- see
-# hydra-headless-ts/init.sls and etc/nginx/conf.d/hydra.conf). Re-capture once
-# that ships, and this note can go too.
-#
-# NOTE: staging-db-galera-prime was then replaced BY HAND with the three
-# actual mcp_auth_db: true nodes in pillar/staging/servers/init.sls --
-# stagingdb01 (mcp_port 9012), stagingdb02 (9011), stagingdb05 (9010) -- once
-# the salt side moved off the removed pillar mariadb-mcp:sources list onto
-# get_mcp_auth_db() (salt/common/vpc_topology_macros.jinja2), which returns
-# one entry per node flagged mcp_auth_db: true rather than a hand-curated
-# list. Re-capture once that ships, and this note can go too.
+# prints the date above on every run. Everything below the header is the
+# verbatim capture, with no hand edits.
 
+js_import discovery_filter.js;
 upstream public_api {
-  server 10.1.2.247:4444;
+  server 10.1.2.230:4444;
 }
+upstream admin_api {
+  server 10.1.2.230:4445;
+}
+
 upstream mcp-tools {
-  server 10.1.2.247:9001;
-}
-
-upstream mcp-tools-healthcheck {
-  server 10.1.2.247:9001;
-}
-
-upstream mcp-tools-stagingdb01 {
-  server 10.1.2.247:9012;
-}
-
-upstream mcp-tools-stagingdb02 {
-  server 10.1.2.247:9011;
-}
-
-upstream mcp-tools-stagingdb05 {
-  server 10.1.2.247:9010;
+  server 10.1.2.230:9001;
 }
 
 upstream hydra-headless-ts {
-  server 10.1.2.247:3000;
+  server 10.1.2.230:3000;
 }
 
+upstream mcp-tools-stagingdb05 {
+  server 10.1.2.230:9010;
+}
 
+upstream mcp-tools-stagingdb02 {
+  server 10.1.2.230:9011;
+}
 map $request_uri $mcp_resource {
   default "";
-  ~^/db-tools/stagingdb01 "stagingdb01";
-  ~^/db-tools/stagingdb02 "stagingdb02";
-  ~^/db-tools/stagingdb05 "stagingdb05";
+  ~^/db-tools "db-tools";
+  ~^/db-tools/stagingdb05 "db-tools/stagingdb05";
+  ~^/db-tools/stagingdb02 "db-tools/stagingdb02";
+}
+geo $remote_addr $mcp_healthcheck_source_ip {
+  default 0;
+  10.1.0.125 1;
+  10.1.0.50 1;
+}
+map $http_x_healthcheck $mcp_healthcheck_source_id {
+  default 0;
+  staginglb02 1;
+  staginglb04 1;
+}
+map $http_x_real_ip $mcp_healthcheck_not_client {
+  default 0;
+  "" 1;
+}
+map "$mcp_healthcheck_source_ip:$mcp_healthcheck_source_id:$mcp_healthcheck_not_client" $mcp_healthcheck_bypass {
+  default 0;
+  "1:1:1" 1;
+}
+map "$mcp_healthcheck_bypass:$mcp_resource" $mcp_healthcheck_bypass_resource {
+  default 0;
+  "1:db-tools" 1;
 }
 
 server {
-  listen 8888 proxy_protocol;
+  listen 80;
   server_name oauth.staging.bondlink.org oauth-passive.staging.bondlink.org;
   add_header 'Access-Control-Allow-Credentials' 'true';
   location ~ ^(.+)/$ {
     return 301 $scheme://$host$1;
   }
 
-  # Composed by the app (not proxied straight to Hydra) so it can advertise
-  # CIMD support alongside Hydra's native fields — see routes/discovery-fp.ts.
-  #
-  # NOTE: this location's proxy_pass was changed BY HAND ahead of the matching
-  # salt template change (salt/hydra-headless-ts/etc/nginx/conf.d/hydra.conf,
-  # salt repo) -- like every other file in this repo, this one is just a
-  # captured baseline (see the file header) and is NOT mounted anywhere, so
-  # editing it alone does nothing on a real host. Until the salt side ships
-  # and is applied, the live staging/prod nginx still blind-proxies this path
-  # straight to Hydra's own /.well-known/openid-configuration, and
-  # CIMD_ENABLED being true in the app's own config will NOT be visible in
-  # this document there. Re-capture once that change ships, and this note can
-  # go too.
+  location ~ ^/(admin|clients|keys|health|metrics|version|oauth2/auth/requests|oauth2/introspect|oauth2/flush) {
+    include /etc/nginx/cors_headers;
+    include /etc/nginx/options_request;
+    proxy_pass http://admin_api;
+    proxy_redirect    off;
+    proxy_set_header Cookie $http_cookie;
+    proxy_set_header  Host               $host;
+    proxy_set_header  X-Real-IP          $remote_addr;
+    proxy_set_header  X-Forwarded-For    $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Proto  $http_x_forwarded_proto;
+    proxy_set_header X-CSRF-TOKEN $http_x_csrf_token;
+    proxy_set_header X-XSRF-TOKEN $http_x_xsrf_token;
+  }
+  location = /_discovery_upstream {
+    internal;
+    proxy_pass http://hydra-headless-ts/.well-known/oauth-authorization-server;
+  }
+
   location = /.well-known/oauth-authorization-server {
-   include /etc/nginx/cors_headers;
-   include /etc/nginx/options_request;
-   proxy_pass http://hydra-headless-ts;
+    include /etc/nginx/cors_headers;
+    include /etc/nginx/options_request;
+    js_content discovery_filter.hide_dcr;
   }
   # oauth2/auth and oauth2/token && oauth2/register are managed by hydra-headless-ts
   # the former is proxied to hydra, the latter is all in the application
@@ -130,38 +127,27 @@ server {
     try_files $uri =404;
   }
 
-
   location = /.well-known/oauth-protected-resource/db-tools {
     include /etc/nginx/cors_headers;
     include /etc/nginx/options_request;
-    root /var/www/html/auth;
-    try_files $uri.json $uri =404;
+    alias /var/www/html/auth/.well-known/oauth-protected-resource/db-tools.json;
     add_header Content-Type application/json;
   }
 
-  location = /.well-known/oauth-protected-resource/stagingdb01 {
+  location = /.well-known/oauth-protected-resource/db-tools/stagingdb05 {
     include /etc/nginx/cors_headers;
     include /etc/nginx/options_request;
-    root /var/www/html/auth;
-    try_files $uri.json $uri =404;
+    alias /var/www/html/auth/.well-known/oauth-protected-resource/db-tools_stagingdb05.json;
     add_header Content-Type application/json;
   }
 
-  location = /.well-known/oauth-protected-resource/stagingdb02 {
+  location = /.well-known/oauth-protected-resource/db-tools/stagingdb02 {
     include /etc/nginx/cors_headers;
     include /etc/nginx/options_request;
-    root /var/www/html/auth;
-    try_files $uri.json $uri =404;
+    alias /var/www/html/auth/.well-known/oauth-protected-resource/db-tools_stagingdb02.json;
     add_header Content-Type application/json;
   }
 
-  location = /.well-known/oauth-protected-resource/stagingdb05 {
-    include /etc/nginx/cors_headers;
-    include /etc/nginx/options_request;
-    root /var/www/html/auth;
-    try_files $uri.json $uri =404;
-    add_header Content-Type application/json;
-  }
 
   location / {
     include /etc/nginx/cors_headers;
@@ -182,6 +168,9 @@ server {
 
   location = /_authz {
     internal;
+    if ($mcp_healthcheck_bypass_resource = 1) {
+      return 200;
+    }
     proxy_pass http://hydra-headless-ts/authz;
     proxy_pass_request_body off;
     proxy_set_header Content-Length "";
@@ -202,9 +191,11 @@ server {
   location /db-tools {
     include /etc/nginx/cors_headers;
     include /etc/nginx/options_request;
+    auth_request /_authz;
+    error_page 401 = @mcp_unauthorized;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
     proxy_set_header Accept-Encoding "";
     chunked_transfer_encoding on;
     proxy_read_timeout 3600s;
@@ -212,47 +203,17 @@ server {
     proxy_pass http://mcp-tools/mcp;
   }
 
-  location /healthcheck {
+  location ~ ^/(consent|logout|auth|callback|oauth2) {
     include /etc/nginx/cors_headers;
     include /etc/nginx/options_request;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
     proxy_set_header Accept-Encoding "";
     chunked_transfer_encoding on;
     proxy_read_timeout 3600s;
     proxy_send_timeout 3600s;
-    proxy_pass http://mcp-tools-healthcheck/mcp;
-  }
-
-  location /db-tools/stagingdb01 {
-    include /etc/nginx/cors_headers;
-    include /etc/nginx/options_request;
-    auth_request /_authz;
-    error_page 401 = @mcp_unauthorized;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header Accept-Encoding "";
-    chunked_transfer_encoding on;
-    proxy_read_timeout 3600s;
-    proxy_send_timeout 3600s;
-    proxy_pass http://mcp-tools-stagingdb01/mcp;
-  }
-
-  location /db-tools/stagingdb02 {
-    include /etc/nginx/cors_headers;
-    include /etc/nginx/options_request;
-    auth_request /_authz;
-    error_page 401 = @mcp_unauthorized;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header Accept-Encoding "";
-    chunked_transfer_encoding on;
-    proxy_read_timeout 3600s;
-    proxy_send_timeout 3600s;
-    proxy_pass http://mcp-tools-stagingdb02/mcp;
+    proxy_pass http://hydra-headless-ts;
   }
 
   location /db-tools/stagingdb05 {
@@ -262,7 +223,7 @@ server {
     error_page 401 = @mcp_unauthorized;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
     proxy_set_header Accept-Encoding "";
     chunked_transfer_encoding on;
     proxy_read_timeout 3600s;
@@ -270,17 +231,19 @@ server {
     proxy_pass http://mcp-tools-stagingdb05/mcp;
   }
 
-  location ~ ^/(consent|logout|auth|callback|oauth2) {
+  location /db-tools/stagingdb02 {
     include /etc/nginx/cors_headers;
     include /etc/nginx/options_request;
+    auth_request /_authz;
+    error_page 401 = @mcp_unauthorized;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
     proxy_set_header Accept-Encoding "";
     chunked_transfer_encoding on;
     proxy_read_timeout 3600s;
     proxy_send_timeout 3600s;
-    proxy_pass http://hydra-headless-ts;
+    proxy_pass http://mcp-tools-stagingdb02/mcp;
   }
 
 }

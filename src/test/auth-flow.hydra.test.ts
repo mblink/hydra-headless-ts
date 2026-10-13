@@ -37,7 +37,7 @@ describe('authorization flow against Hydra', () => {
 
   beforeAll(async () => {
     await waitForHydra();
-    app = await startApp(hydra, appPort);
+    app = await startApp(hydra, { port: appPort });
     ({ CLIENT_SCOPE } = await import('../authFlow.js'));
   }, 90_000);
 
