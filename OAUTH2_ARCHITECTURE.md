@@ -81,37 +81,53 @@ The `/.well-known/oauth-authorization-server` discovery document (`routes/discov
 
 ### 1. Authorization Code Flow with PKCE
 
-The primary flow for web/mobile applications.
+The flow Claude's MCP connector uses, and the one most changes here touch. It is one round trip across nine requests and three parties (the client, Hydra, Google), with this app in the middle of most of them. Each leg depends on what earlier legs stored, rewrote or set as a cookie, so a change to one leg can break another that its own tests never reach.
 
-```ascii
-User → Client App → Hydra /oauth2/auth
-                     ↓
-              Login Challenge → This Service
-                     ↓
-              Redirect to Google OAuth
-                     ↓
-              Google Authentication
-                     ↓
-              Google Callback → This Service
-                     ↓
-              Store tokens in Redis (PKCE state)
-                     ↓
-              Accept Hydra login → Consent Challenge
-                     ↓
-              User grants consent
-                     ↓
-              Accept Hydra consent → Auth Code
-                     ↓
-              Client exchanges auth code for tokens
-```
+**Before changing anything on this path, read this section and work through the checklist at the end of it.** That covers `src/setup/proxy.ts`, the login, consent and callback routes and services, `fp/services/token.ts`, the session and cookie settings in `src/app.ts`, `routes/discovery-fp.ts`, `CLIENT_SCOPE` in `src/authFlow.ts`, and the nginx and HAProxy config in front of these paths.
+
+#### The legs
+
+| # | Request | Sent by | What happens | State it reads or writes | Depends on |
+|---|---|---|---|---|---|
+| 1 | `GET /.well-known/oauth-authorization-server` | Claude's server | `routes/discovery-fp.ts` returns Hydra's document with `scopes_supported` replaced by `CLIENT_SCOPE` (`openid email profile offline_access`), plus `client_id_metadata_document_supported` when CIMD is on. | — | Claude requests these scopes when the protected resource metadata (`db-tools.json`) lists none, so every scope here must be in every client's Hydra `scope`. |
+| 2 | `POST /oauth2/register` (DCR only) | Claude's server | The proxy rejects redirect URIs outside the allowlist, turns `contacts: null` into `[]`, fills in `scope: CLIENT_SCOPE` when it's missing, and forwards to Hydra. | Hydra's client table | Without a scope, Hydra gives the client `offline_access offline openid`, and leg 3 then fails with `invalid_scope` for `email`. CIMD clients skip this leg and are shadow-registered on leg 3. |
+| 3 | `GET /oauth2/auth` (first leg) | Browser, from claude.ai | The proxy accepts only GET with each parameter once. It requires `client_id`, `redirect_uri`, `response_type=code`, `state` and an S256 `code_challenge`, and checks `redirect_uri` against the allowlist. It runs the CIMD pre-flight, then forwards to Hydra without `code_challenge(_method)` and with a random flow id as `state`. Hydra checks the client, redirect URI and scopes (an `invalid_scope` is a 303 to the client's `redirect_uri`), sets its login CSRF cookie and redirects to `/login`. | Writes `pkce_session:<flowId>` (1 h): the client's challenge, `state`, `client_id`, `redirect_uri`, `scope` and the browser's session id. Writes to `req.session`, which makes express-session set the session cookie. | The session cookie is `Secure` outside local, and express-session silently skips it unless the request looks like https. nginx must forward `X-Forwarded-Proto` as `https` (`$http_x_forwarded_proto`, not `$scheme`), and the app trusts one proxy hop. |
+| 4 | `GET /login?login_challenge=…` | Browser (Hydra's redirect) | Auto-accepts the login with a placeholder subject. Hydra's `redirect_to` is leg 5. | — | — |
+| 5 | `GET /oauth2/auth?…&login_verifier=…` (login return) | Browser (Hydra's redirect) | Hydra builds this URL from the query the proxy sent it on leg 3, so it has **no `code_challenge`** and the flow id as `state`. The proxy runs the same parameter checks except `code_challenge`, then loads the flow by `state`. Only if the flow's session id, `client_id` and `redirect_uri` all match does it forward the request to Hydra unchanged. Otherwise it returns 400 `Authorization request not found or expired`. | Reads `pkce_session:<flowId>` | The session cookie from leg 3, and Hydra's CSRF cookie. |
+| 6 | `GET /consent?consent_challenge=…` | Browser (Hydra's redirect) | Reads the flow id from the consent request's `request_url`, which Hydra keeps as the leg 3 URL whatever leg 5 said. It accepts consent with the requested scopes and redirects to Google with the flow id as `state`, `scope=openid profile email` and `access_type=offline`. There is no `consent_verifier` leg back to `/oauth2/auth`. | — | Hydra keeping leg 3's URL as `request_url`. |
+| 7 | Google sign-in | Browser | Google redirects to `/callback` (`REDIRECT_URL`) with its `code` and our `state`. | — | The session cookie is `SameSite=Lax`, so it still arrives on this cross-site top-level redirect. `Strict` would drop it. |
+| 8 | `GET /callback?code=…&state=…` | Browser (Google's redirect) | Loads the flow by `state` and rejects it unless it belongs to this browser session. Exchanges the code with Google, verifies the ID token, and requires `email_verified` and the email allowlist. Redirects to the client's `redirect_uri` with a new code of ours and the client's original `state`. | Reads and then deletes `pkce_session:<flowId>`. Writes `auth_code:<code>` (Google tokens and the Google `sub`) and `auth_code_state:<code>` (the flow), both for 5 min. | The session cookie from leg 3. |
+| 9 | `POST /oauth2/token` (`authorization_code`) | Claude's server | `fp/services/token.ts` consumes the code once. It requires the same `client_id` and `redirect_uri` as the flow, checks `code_verifier` against the stored S256 challenge, and checks the allowlist again. It issues our JWT access token and our refresh token. | Reads and deletes `auth_code:*` and `auth_code_state:*`. Writes `google_token:<jti>` and `jwt_refresh:<token>`. | — |
+
+Later `refresh_token` grants (section 3) only use the state written on leg 9.
+
+#### What crosses legs
+
+- **`state` means three different things.** On leg 3 it's the client's `state`, which is stored and returned on leg 8. From the proxy onward it's our flow id: Hydra's `state` on legs 3 and 5, the `state` in leg 6's `request_url`, and Google's `state` on legs 7 and 8. Changing what goes into `state` on leg 3 changes legs 5 to 8.
+- **A parameter the proxy removes or rewrites on leg 3 comes back changed on leg 5.** Hydra builds the login return from what it was sent, not what the client sent. A new requirement on `/oauth2/auth` has to say what happens on leg 5. Requiring `code_challenge` on every request broke every sign-in for this reason (d561bd7, fixed in #30).
+- **The session cookie set on leg 3 has to come back on legs 5 and 8.** That depends on `Secure` plus `X-Forwarded-Proto` through HAProxy and nginx, `trust proxy`, and `SameSite=Lax`. The flow tests don't run behind a proxy, so the deploy config matters as much as the code here. See `STAGING_TROUBLESHOOTING.md` → "App startup and sessions".
+- **The scopes Claude requests must be a subset of the client's Hydra `scope`.** Leg 1 decides what Claude asks for. Legs 2 and 3 (CIMD) decide what the client carries, and `newClient` covers CLI-made clients. All of them use `CLIENT_SCOPE`.
+
+#### Before changing this path
+
+1. List every leg the change touches. Include legs it affects only through what it stores, removes, rewrites, requires or sets as a cookie.
+2. For every parameter, header or cookie the change requires, rewrites or drops, check every leg that sends it. Leg 5 is built by Hydra from leg 3's forwarded query, so check it in particular.
+3. Run `npm test` (the fake-Hydra flow test) and `./scripts/hydra-flow-test.sh` (real Hydra). If the change adds a check or a leg, extend `src/test/authFlow.ts` so the flow tests exercise it.
+4. If it touches cookies, sessions, headers, redirect URLs or anything nginx and HAProxy forward, check the deploy layer as well. The tests talk to the app directly over http.
+5. In the PR, name the legs the change touches and how each was checked. Run a real sign-in on staging before calling it done.
+
+The reason for the checklist is that a security fix which breaks sign-in can't be deployed, so it protects nothing. In October 2026, two correct fixes (requiring `code_challenge`, and binding the flow to the browser session) were each made without considering leg 5 or the proxy in front of the app. They broke sign-in, which kept them off staging until #30 and the nginx `X-Forwarded-Proto` fix.
 
 **Key Files:**
 
-- [src/routes/login-fp.ts](src/routes/login-fp.ts) - Login handler
-- [src/routes/consent-fp.ts](src/routes/consent-fp.ts) - Consent handler
-- [src/routes/callback-fp.ts](src/routes/callback-fp.ts) - Google OAuth callback
-- [src/fp/services/login.ts](src/fp/services/login.ts) - Login business logic
-- [src/fp/services/consent.ts](src/fp/services/consent.ts) - Consent business logic
+- [src/setup/proxy.ts](src/setup/proxy.ts) - Legs 2, 3 and 5
+- [src/routes/login-fp.ts](src/routes/login-fp.ts), [src/fp/services/login.ts](src/fp/services/login.ts) - Leg 4
+- [src/routes/consent-fp.ts](src/routes/consent-fp.ts), [src/fp/services/consent.ts](src/fp/services/consent.ts) - Leg 6
+- [src/routes/callback-fp.ts](src/routes/callback-fp.ts), [src/fp/services/callback.ts](src/fp/services/callback.ts) - Leg 8
+- [src/routes/passthrough-auth-fp.ts](src/routes/passthrough-auth-fp.ts), [src/fp/services/token.ts](src/fp/services/token.ts) - Leg 9
+- [src/routes/discovery-fp.ts](src/routes/discovery-fp.ts) - Leg 1
+- [src/app.ts](src/app.ts) - Middleware order and session cookie settings
+- [src/test/authFlow.ts](src/test/authFlow.ts) - Drives legs 1 to 9 for both flow tests
 
 ### 2. Device Authorization Flow (RFC 8628)
 
@@ -188,26 +204,28 @@ Client → Hydra /oauth2/sessions/logout
 Used to prevent authorization code interception attacks. RFC 7636.
 
 ```typescript
-// Stored in Redis with TTL
+// pkce_session:<flowId>, for 1 hour (see leg 3 above)
 interface PKCEState {
-  code_challenge: string        // SHA256(code_verifier)
+  code_challenge: string        // the client's S256 challenge
   code_challenge_method: 'S256'
-  scope: string                 // Requested scopes
-  state: string                 // OAuth2 state parameter
-  redirect_uri: string          // Where to redirect after auth
-  client_id: string            // Hydra client ID
-  timestamp: number            // For expiration
+  scope: string                 // requested scopes
+  state: string                 // the client's own state, returned on leg 8
+  redirect_uri: string
+  client_id: string
+  timestamp: number
+  session_id?: string           // the express session that started the flow
 }
 ```
 
-### Session Storage (Redis)
+### Redis keys
 
-All OAuth2 state is stored in Redis with appropriate TTLs:
+- **Authorization flow**: `pkce_session:{flowId}`, 1 hour
+- **Authorization codes**: `auth_code:{code}` and `auth_code_state:{code}`, 5 minutes
+- **Google tokens**: `google_token:{jti}`, 30 days
+- **Our refresh tokens**: `jwt_refresh:{token}`
+- **CIMD metadata cache**: `cimd_metadata:{client_id}`
 
-- **PKCE State**: `pkce:{key}` - Expires in 10 minutes
-- **Authorization Codes**: `auth_code:{code}` - Expires in 5 minutes
-- **Refresh Tokens**: `refresh_token:{token}` - Expires in 30 days
-- **User Sessions**: `session:{session_id}` - Configured via express-session
+Express sessions are in Postgres (`connect-pg-simple`, table `session`), not Redis.
 
 **Key Files:**
 
@@ -228,8 +246,8 @@ All OAuth2 state is stored in Redis with appropriate TTLs:
 
 ### State Parameter
 
-- OAuth2 state parameter prevents CSRF in OAuth flows
-- Validated on callback from Google OAuth
+- The client's `state` is stored on leg 3 and returned unchanged on leg 8
+- Hydra and Google see our random flow id instead. `/callback` only accepts it from the browser session that started the flow, which stops login CSRF
 
 ### Session Security
 
@@ -362,32 +380,11 @@ export const createAppLayer = (
 
 ## Testing Strategy
 
-Comprehensive test coverage with Vitest and @effect/vitest:
+- **Unit tests** (`src/**/*.test.ts`, `npm test`): services and routes with mock layers, and `src/setup/proxy.test.ts` for the proxy's per-request checks.
+- **Flow test against a fake Hydra** (`src/test/auth-flow.test.ts`, part of `npm test`): drives legs 1 to 9 of the authorization code flow through `createApp()`, following every redirect with cookies, with a fake Google. `src/test/fakeHydra.ts` copies what Hydra v25 was observed to do.
+- **Flow test against a real Hydra** (`src/test/auth-flow.hydra.test.ts`, `npm run test:hydra`): the same flow against Hydra v25. Locally, `./scripts/hydra-flow-test.sh` starts Hydra in Docker; in CI it's the `hydra-flow-test` step. It catches the fake being wrong about Hydra.
 
-- **Unit Tests**: Individual service functions (101/115 passing)
-- **Integration Tests**: Layer composition and service interaction
-- **Schema Tests**: Runtime validation of domain types
-- **Mock Layers**: Easy service mocking for isolated testing
-
-**Example:**
-
-```typescript
-// src/fp/services/google.test.ts
-describe('GoogleOAuthService', () => {
-  it('should refresh token successfully', async () => {
-    const mockResponse: GoogleTokenResponse = { /* ... */ }
-    vi.mocked(axios.post).mockResolvedValue({ data: mockResponse })
-
-    const program = pipe(
-      googleService.refreshToken(mockTokenData),
-      Effect.provide(TestServiceLayer)
-    )
-
-    const result = await Effect.runPromise(program)
-    expect(result).toEqual(mockResponse)
-  })
-})
-```
+Neither flow test covers nginx and HAProxy, TLS, a real Google sign-in or fetching CIMD metadata over https, so a change that touches those needs a sign-in on staging too (see "Before changing this path" above).
 
 ## Configuration
 

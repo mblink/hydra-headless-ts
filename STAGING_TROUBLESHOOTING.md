@@ -78,18 +78,29 @@ mistake doesn't cost another debugging session.
   `/etc/hydra-headless-ts/hydra.env` (see the two propagation steps under
   Docker Compose above). Changing `SESSION_SECRET` logs every user out once.
 
-- **Sign-in fails at `/callback` with a 400, or the browser never gets a
-  session cookie.** When `BASE_URL` is https the session cookie is `Secure`,
-  and express-session silently skips setting a `Secure` cookie unless the
-  request looks like https. That depends on the whole chain: HAProxy's
-  `hydra-headless-ts` backend sets `X-Forwarded-Proto https`, the host
-  nginx location forwards it (`proxy_set_header X-Forwarded-Proto
-  $http_x_forwarded_proto`), and the app trusts exactly one proxy hop
-  (`app.set('trust proxy', 1)` in `src/app-fp.ts`). Check those three before
-  the app code. Without the session, `/callback` can't match Google's `state`
-  to the flow and rejects it. The session and CSRF cookies are
+- **Sign-in fails with `Authorization request not found or expired` on the
+  return from `/login`, or at `/callback` with a 400: the browser never got
+  a session cookie.** The app logs `login return does not match a stored
+  flow` with `reason: session, client_id or redirect_uri differs` (or
+  `Authorization flow was started in a different session` at `/callback`).
+  The flow is in Redis, but the session that started it isn't the one the
+  browser came back with. When `BASE_URL` is https the session cookie is
+  `Secure`, and express-session silently skips setting a `Secure` cookie
+  unless the request looks like https. That depends on the whole chain:
+  HAProxy's `hydra-headless-ts` backend sets `X-Forwarded-Proto https`, the
+  host nginx forwards it in **every** location that proxies to the app
+  (`proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto`), and the
+  app trusts exactly one proxy hop (`app.set('trust proxy', 1)` in
+  `src/app.ts`). Check those before the app code. nginx listens on plain
+  8888 behind HAProxy, so `$scheme` is `http` there: the
+  `location ~ ^/(consent|logout|auth|callback|oauth2)` block once set
+  `X-Forwarded-Proto $scheme`, which left `/oauth2/auth` and `/callback`
+  without the cookie while `/login` (through `@hydra-headless-ts`) looked
+  fine. In the browser, the 302 from the first `/oauth2/auth`
+  has no `Set-Cookie: connect.sid`. The session and CSRF cookies are
   `SameSite=Lax` so they still arrive on Google's top-level redirect back to
-  `/callback`; `Strict` would break sign-in.
+  `/callback`; `Strict` would break sign-in. See the flow table in
+  `OAUTH2_ARCHITECTURE.md` for which legs need the cookie.
 
 ## OAuth client configuration (Hydra + Google)
 
