@@ -73,7 +73,7 @@ describe('setup/proxy (Hydra passthrough)', () => {
     server.use(express.json());
     server.use(express.urlencoded({ extended: false }));
     server.use(((req, _res, next) => {
-      (req as unknown as { session: object }).session = { id: 'session-123' };
+      (req as unknown as { session: object }).session = { id: req.get('x-test-session') ?? 'session-123' };
       next();
     }) as RequestHandler);
     server.use('/oauth2/register', proxyMiddleware);
@@ -154,6 +154,7 @@ describe('setup/proxy (Hydra passthrough)', () => {
     const body = {
       client_name: 'Claude',
       redirect_uris: ['https://claude.ai/api/mcp/auth_callback'],
+      scope: 'openid offline_access',
     };
 
     const res = await fetch(`${appUrl}/oauth2/register`, {
@@ -173,7 +174,12 @@ describe('setup/proxy (Hydra passthrough)', () => {
     const res = await fetch(`${appUrl}/oauth2/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client_name: 'Claude', redirect_uris: ['http://localhost:6274/cb'], contacts: null }),
+      body: JSON.stringify({
+        client_name: 'Claude',
+        redirect_uris: ['http://localhost:6274/cb'],
+        scope: 'openid',
+        contacts: null,
+      }),
     });
 
     expect(res.status).toBe(200);
@@ -181,13 +187,14 @@ describe('setup/proxy (Hydra passthrough)', () => {
     expect(JSON.parse(received[0].body)).toEqual({
       client_name: 'Claude',
       redirect_uris: ['http://localhost:6274/cb'],
+      scope: 'openid',
       contacts: [],
     });
     expect(Number(received[0].headers['content-length'])).toBe(Buffer.byteLength(received[0].body));
   });
 
   it('recomputes Content-Length when re-serializing changes the body size', async () => {
-    const body = { client_name: 'Claude', redirect_uris: ['https://claude.ai/api/mcp/auth_callback'] };
+    const body = { client_name: 'Claude', redirect_uris: ['https://claude.ai/api/mcp/auth_callback'], scope: 'openid' };
 
     const res = await fetch(`${appUrl}/oauth2/register`, {
       method: 'POST',
@@ -199,6 +206,18 @@ describe('setup/proxy (Hydra passthrough)', () => {
     expect(res.status).toBe(200);
     expect(received).toHaveLength(1);
     expect(JSON.parse(received[0].body)).toEqual(body);
+    expect(Number(received[0].headers['content-length'])).toBe(Buffer.byteLength(received[0].body));
+  });
+
+  it("registers a client that sends no scope with our clients' scopes, not Hydra's default", async () => {
+    const res = await fetch(`${appUrl}/oauth2/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_name: 'Claude', redirect_uris: ['https://claude.ai/api/mcp/auth_callback'] }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(JSON.parse(received[0].body).scope).toBe('openid email profile offline_access');
     expect(Number(received[0].headers['content-length'])).toBe(Buffer.byteLength(received[0].body));
   });
 
@@ -320,40 +339,69 @@ describe('setup/proxy (Hydra passthrough)', () => {
     await rejectsAuth(query, 'Missing required parameters: code_challenge, state');
   });
 
-  // What Hydra sends the browser back to after login: the query it was first sent, plus a verifier
-  const hydraReturnQuery = (verifier: 'login_verifier' | 'consent_verifier') => {
-    const query = authQuery('flow-id-from-first-leg');
-    query.delete('code_challenge');
-    query.delete('code_challenge_method');
-    query.set(verifier, 'verifier-abc');
+  // What Hydra sends the browser back to after login: the query this proxy sent it on the first
+  // leg, plus a login_verifier
+  const startFlowAndReturn = async () => {
+    await fetch(`${appUrl}/oauth2/auth?${authQuery('client-state')}`, { redirect: 'manual' });
+    const query = new URL(received[0].url, 'http://hydra').searchParams;
+    query.set('login_verifier', 'verifier-abc');
+    received.length = 0;
     return query;
   };
 
-  it.each(['login_verifier', 'consent_verifier'] as const)(
-    'forwards the %s return to Hydra unchanged without starting a new flow',
-    async (verifier) => {
-      const query = hydraReturnQuery(verifier);
-      const res = await fetch(`${appUrl}/oauth2/auth?${query}`, { redirect: 'manual' });
+  const rejectsReturn = async (
+    query: URLSearchParams,
+    error_description = 'Authorization request not found or expired',
+    headers: Record<string, string> = {},
+  ) => {
+    const res = await fetch(`${appUrl}/oauth2/auth?${query}`, { redirect: 'manual', headers });
 
-      expect(res.status).toBe(200);
-      expect(received).toHaveLength(1);
-      const forwarded = new URL(received[0].url, 'http://hydra');
-      expect(forwarded.pathname).toBe('/oauth2/auth');
-      expect(Object.fromEntries(forwarded.searchParams)).toEqual(Object.fromEntries(query));
-      expect(redisStore.size).toBe(0);
-    },
-  );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: 'invalid_request', error_description });
+    expect(received).toHaveLength(0);
+  };
 
-  it('still checks the redirect_uri on the return from login', async () => {
-    const query = hydraReturnQuery('login_verifier');
-    query.set('redirect_uri', 'https://evil.com/cb');
-    await rejectsAuth(query, 'redirect_uri is not allowed');
+  it('forwards the login return to Hydra unchanged without starting a new flow', async () => {
+    const query = await startFlowAndReturn();
+    const storedFlows = [...redisStore.keys()];
+
+    const res = await fetch(`${appUrl}/oauth2/auth?${query}`, { redirect: 'manual' });
+
+    expect(res.status).toBe(200);
+    expect(received).toHaveLength(1);
+    const forwarded = new URL(received[0].url, 'http://hydra');
+    expect(forwarded.pathname).toBe('/oauth2/auth');
+    expect(Object.fromEntries(forwarded.searchParams)).toEqual(Object.fromEntries(query));
+    expect([...redisStore.keys()]).toEqual(storedFlows);
   });
 
-  it('rejects a repeated verifier', async () => {
-    const query = hydraReturnQuery('login_verifier');
+  it('rejects a login return whose state is not a stored flow', async () => {
+    const query = await startFlowAndReturn();
+    query.set('state', 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
+    await rejectsReturn(query);
+  });
+
+  it('rejects a login return from another browser session', async () => {
+    const query = await startFlowAndReturn();
+    await rejectsReturn(query, undefined, { 'x-test-session': 'other-session' });
+  });
+
+  it('rejects a login return for a different client', async () => {
+    const query = await startFlowAndReturn();
+    query.set('client_id', 'client-2');
+    await rejectsReturn(query);
+  });
+
+  it('still checks the redirect_uri on the login return', async () => {
+    const query = await startFlowAndReturn();
+    query.set('redirect_uri', 'https://evil.com/cb');
+    await rejectsReturn(query, 'redirect_uri is not allowed');
+  });
+
+  it('rejects a repeated login_verifier', async () => {
+    const query = await startFlowAndReturn();
     query.append('login_verifier', 'other');
-    await rejectsAuth(query, 'login_verifier must be given exactly once');
+    await rejectsReturn(query, 'login_verifier must be given exactly once');
   });
 
   it('stops with 503 when the flow cannot be stored', async () => {
