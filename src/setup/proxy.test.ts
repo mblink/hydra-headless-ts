@@ -320,6 +320,42 @@ describe('setup/proxy (Hydra passthrough)', () => {
     await rejectsAuth(query, 'Missing required parameters: code_challenge, state');
   });
 
+  // What Hydra sends the browser back to after login: the query it was first sent, plus a verifier
+  const hydraReturnQuery = (verifier: 'login_verifier' | 'consent_verifier') => {
+    const query = authQuery('flow-id-from-first-leg');
+    query.delete('code_challenge');
+    query.delete('code_challenge_method');
+    query.set(verifier, 'verifier-abc');
+    return query;
+  };
+
+  it.each(['login_verifier', 'consent_verifier'] as const)(
+    'forwards the %s return to Hydra unchanged without starting a new flow',
+    async (verifier) => {
+      const query = hydraReturnQuery(verifier);
+      const res = await fetch(`${appUrl}/oauth2/auth?${query}`, { redirect: 'manual' });
+
+      expect(res.status).toBe(200);
+      expect(received).toHaveLength(1);
+      const forwarded = new URL(received[0].url, 'http://hydra');
+      expect(forwarded.pathname).toBe('/oauth2/auth');
+      expect(Object.fromEntries(forwarded.searchParams)).toEqual(Object.fromEntries(query));
+      expect(redisStore.size).toBe(0);
+    },
+  );
+
+  it('still checks the redirect_uri on the return from login', async () => {
+    const query = hydraReturnQuery('login_verifier');
+    query.set('redirect_uri', 'https://evil.com/cb');
+    await rejectsAuth(query, 'redirect_uri is not allowed');
+  });
+
+  it('rejects a repeated verifier', async () => {
+    const query = hydraReturnQuery('login_verifier');
+    query.append('login_verifier', 'other');
+    await rejectsAuth(query, 'login_verifier must be given exactly once');
+  });
+
   it('stops with 503 when the flow cannot be stored', async () => {
     failRedisWrites = true;
     const res = await fetch(`${appUrl}/oauth2/auth?${authQuery('client-state')}`, { redirect: 'manual' });

@@ -35,8 +35,18 @@ const AUTHORIZE_PARAMS = [
   'code_challenge_method',
   'scope',
   'state',
+  'login_verifier',
+  'consent_verifier',
 ] as const;
 type AuthorizeParam = (typeof AUTHORIZE_PARAMS)[number];
+
+// After login (and consent), Hydra sends the browser back to /oauth2/auth with a verifier added
+// to the query it was first sent: no code_challenge, and our flow id as state. The flow was
+// stored on the first leg, so these go to Hydra as they are, and Hydra checks the verifier.
+const isHydraReturn = (query: URLSearchParams | Partial<Record<AuthorizeParam, string>>): boolean =>
+  query instanceof URLSearchParams
+    ? query.has('login_verifier') || query.has('consent_verifier')
+    : query.login_verifier !== undefined || query.consent_verifier !== undefined;
 
 // BASE64URL(SHA-256(verifier)) is always 43 characters without padding
 const S256_CHALLENGE = /^[A-Za-z0-9_-]{43}$/;
@@ -99,6 +109,9 @@ const proxyOptions = {
   pathRewrite: async (path: string, req: Request) => {
     const parsed = new URL(`${req.protocol}://${req.get('host')}${req.originalUrl}`);
     if (parsed.pathname === '/oauth2/auth') {
+      if (isHydraReturn(parsed.searchParams)) {
+        return `${parsed.pathname}${parsed.search}`;
+      }
       const flowId = flowIds.get(req);
       if (!flowId) {
         throw new Error('/oauth2/auth reached the proxy without a stored flow');
@@ -258,8 +271,9 @@ const enhancedProxyMiddleware = async (req: Request, res: Response, next: NextFu
         error_description: `${repeatedParam} must be given exactly once`,
       });
     }
-    const { client_id, redirect_uri, response_type, code_challenge, code_challenge_method, scope, state } =
-      req.query as Partial<Record<AuthorizeParam, string>>;
+    const query = req.query as Partial<Record<AuthorizeParam, string>>;
+    const { client_id, redirect_uri, response_type, code_challenge, code_challenge_method, scope, state } = query;
+    const returning = isHydraReturn(query);
 
     // Fatal validation errors that should return 400
     const missingParams: string[] = [];
@@ -271,10 +285,10 @@ const enhancedProxyMiddleware = async (req: Request, res: Response, next: NextFu
     if (!response_type) missingParams.push('response_type');
     // The token endpoint checks the verifier against the stored challenge, and the callback
     // returns the client's state, so the flow can't finish without either
-    if (!code_challenge) missingParams.push('code_challenge');
+    if (!code_challenge && !returning) missingParams.push('code_challenge');
     if (!state) missingParams.push('state');
 
-    if (!client_id || !redirect_uri || !response_type || !code_challenge || !state) {
+    if (missingParams.length > 0 || !client_id || !redirect_uri || !response_type || !state) {
       syncLogger.error('=== OAUTH2 AUTH ERROR: Missing Parameters ===', {
         missingParams,
         query: req.query,
@@ -309,6 +323,11 @@ const enhancedProxyMiddleware = async (req: Request, res: Response, next: NextFu
       });
     }
 
+    if (returning) {
+      syncLogger.info('Forwarding the return from login or consent to Hydra unchanged', { client_id });
+      return next();
+    }
+
     // RFC 7636 makes a missing method mean plain, which leaves the verifier in the front channel
     if (code_challenge_method !== 'S256') {
       return res.status(400).json({
@@ -316,7 +335,7 @@ const enhancedProxyMiddleware = async (req: Request, res: Response, next: NextFu
         error_description: 'code_challenge_method must be S256',
       });
     }
-    if (!S256_CHALLENGE.test(code_challenge)) {
+    if (!code_challenge || !S256_CHALLENGE.test(code_challenge)) {
       return res.status(400).json({
         error: 'invalid_request',
         error_description: 'code_challenge must be a base64url-encoded SHA-256 hash',
