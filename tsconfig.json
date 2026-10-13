@@ -18,7 +18,7 @@
     "jsxFragmentFactory": "Html.Fragment",
     "plugins": [{ "name": "@kitajs/ts-html-plugin" }]
   },
-  "include": ["src/**/*", "vitest.config.ts"],
+  "include": ["src/**/*", "vitest.config.ts", "vitest.hydra.config.ts"],
   "files": [
     "./typings/index.d.ts"
   ]

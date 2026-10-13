@@ -18,6 +18,7 @@ export default defineConfig({
       ],
     },
     include: ['src/**/*.test.ts', 'src/**/*.spec.ts'],
-    exclude: ['node_modules', 'dist', 'lib'],
+    // Need a running Hydra; `npm run test:hydra` runs them
+    exclude: ['node_modules', 'dist', 'lib', 'src/**/*.hydra.test.ts'],
   },
 })

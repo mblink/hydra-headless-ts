@@ -10,6 +10,7 @@ Woodpecker (`.woodpecker.yml`) is this repo's only CI, at https://woodpecker.bon
 | Step | PR | Push to `RC` |
 |---|---|---|
 | `clone`, `init-build`, `run-tests` (`npm ci`, `npm run ci`) | yes | yes |
+| `hydra-flow-test` (`npm run test:hydra` against the `hydra` service) | yes | yes |
 | `build-and-push` (`build/rebuild.sh --ci`: image build, push to ECR, move `:latest`) | **no** | yes |
 | `notify` (email on failure) | yes | yes |
 

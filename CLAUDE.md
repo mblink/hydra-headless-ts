@@ -14,6 +14,7 @@ Background docs: `OAUTH2_ARCHITECTURE.md` (flows, state, security), `AUTH_FLOW.m
 npm test                                   # vitest run (src/**/*.test.ts)
 npx vitest run src/fp/services/redis.test.ts   # single test file
 npx vitest run -t "test name"              # single test by name
+./scripts/hydra-flow-test.sh               # the auth flow against a real Hydra in Docker (npm run test:hydra)
 npm run typecheck                          # tsc --noEmit
 npm run lint / npm run lint:fix
 npm run format / npm run format:check      # prettier on src/**
@@ -30,13 +31,15 @@ npm run build && npm run serve:dev         # run locally against /etc/hydra-head
 
 ## Architecture
 
-**Entry point:** `src/app-fp.ts` (also the rollup input). It builds the Redis client, Google client and Hydra admin config, then calls `createAppLayer()` in `src/fp/bootstrap.ts`, which merges the Effect service layers (Redis, Google, JWT, OAuth2Api, legacy HydraService, logger). That single `serviceLayer` is passed into each router factory (`createXRouter(serviceLayer, config)`) in `src/routes/*-fp.ts`.
+**Entry point:** `src/app-fp.ts` (also the rollup input). It creates the Postgres session store and Google client, passes them to `createApp()` in `src/app.ts`, and listens. `createApp()` holds all the middleware and routers in order; it builds the Hydra admin config and calls `createAppLayer()` in `src/fp/bootstrap.ts`, which merges the Effect service layers (Redis, Google, JWT, OAuth2Api, legacy HydraService, logger). That single `serviceLayer` is passed into each router factory (`createXRouter(serviceLayer, config)`) in `src/routes/*-fp.ts`.
 
 **Request flow** (see `OAUTH2_ARCHITECTURE.md` for the diagrams):
 - `/oauth2/register` and `/oauth2/auth` are proxied to Hydra by `src/setup/proxy.ts`. Both reject redirect URIs outside `ALLOWED_REDIRECT_URIS` (plus loopback), since login and consent never prompt. For `/oauth2/auth` it validates the parameters (S256 PKCE only, each parameter given once) and CIMD clients when enabled, generates a random flow id, stores the client's PKCE challenge and the browser session id in Redis under it, and sends the flow id to Hydra as `state`.
 - Hydra redirects to `/login` → `/consent`, which reads the flow id back from the consent request's `request_url` and redirects the user to Google with it as `state`, using the master Google client.
+- Between `/login` and `/consent`, Hydra sends the browser back to `/oauth2/auth` with the query the proxy first sent it (no `code_challenge`, the flow id as `state`) plus a `login_verifier`. The proxy forwards that leg unchanged once its `state` matches a stored flow for the same session, client and redirect URI. There is no `consent_verifier` leg, because `/consent` goes to Google instead. Hydra keeps the first leg's URL as the consent `request_url`.
 - Google returns to `/callback` (`REDIRECT_URL`), which looks the flow up by `state`, rejects it unless it belongs to the current browser session, exchanges the code, verifies Google's ID token (`email_verified` plus the email allowlist), stores the Google tokens and the Google `sub` as the subject in Redis, and completes the flow back to the original client.
 - `/oauth2/token` (`routes/passthrough-auth-fp.ts` → `fp/services/token.ts`) handles `authorization_code` (validates PKCE against the stored state) and `refresh_token` grants. It issues JWTs (`fp/services/jwt.ts`, `JWT_PROVIDER` = `hydra` | `google`) rather than handing back Google's opaque tokens.
+- `src/test/auth-flow.test.ts` runs the whole flow (discovery, register, every redirect with cookies, Google, callback, token) through `createApp()` against a fake Hydra (`src/test/fakeHydra.ts`) as part of `npm test`. `src/test/auth-flow.hydra.test.ts` runs the same flow against a real Hydra v25 (`npm run test:hydra`, run by `scripts/hydra-flow-test.sh` locally and by the `hydra-flow-test` step in CI). A change to any leg should keep both passing.
 - `/device` implements the device authorization flow, `/logout` handles RP-initiated logout, and `/validate-token` checks tokens. The `cli-validate-token.ts` script does the same check from the CLI.
 
 **Layering conventions:**

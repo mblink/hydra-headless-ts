@@ -78,6 +78,18 @@ steps:
       - npm ci --no-audit --no-fund
       - npm run ci
 
+  # The whole authorization flow against the real Hydra below (src/test/auth-flow.hydra.test.ts).
+  # npm run ci already ran it against a fake one; this catches the fake being wrong about Hydra.
+  # Reuses run-tests' ./node_modules from the shared workspace.
+  - name: hydra-flow-test
+    image: *build-image
+    pull: true
+    environment:
+      HYDRA_E2E_HOST: hydra
+      HYDRA_E2E_APP_URL: http://127.0.0.1:3999
+    commands:
+      - npm run test:hydra
+
   # Builds the runtime image (build/Dockerfile.headless-ts, via compose) and
   # pushes it to ECR under a build hash. No separate base-install step: an
   # earlier version of this pipeline had one that ran this same `rebuild.sh
@@ -138,3 +150,20 @@ steps:
               --auth=off --tls=off -- "$to"
     when:
       - status: [failure]
+
+# Hydra for hydra-flow-test, with the same image and settings as scripts/hydra-flow-test.sh (keep
+# the two in step). In-memory database, so nothing to migrate. Hydra never calls the app: the
+# test follows its redirects to HYDRA_E2E_APP_URL, inside the hydra-flow-test container.
+services:
+  - name: hydra
+    image: oryd/hydra:v25.4.0-arm64
+    environment:
+      DSN: memory
+      SECRETS_SYSTEM: hydra-flow-test-secret-not-for-production
+      OIDC_DYNAMIC_CLIENT_REGISTRATION_ENABLED: "true"
+      URLS_SELF_ISSUER: http://127.0.0.1:3999
+      URLS_SELF_PUBLIC: http://127.0.0.1:3999
+      URLS_LOGIN: http://127.0.0.1:3999/login
+      URLS_CONSENT: http://127.0.0.1:3999/consent
+    commands:
+      - hydra serve all --dev
