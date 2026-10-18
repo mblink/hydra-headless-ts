@@ -42,10 +42,6 @@ variables:
   # Host-path volumes use Woodpecker's inline host:container form.
   - &docker-volume /var/run/docker.sock:/var/run/docker.sock
   - &cache-volume /var/lib/woodpecker/cache:/cache
-  # The bldeploy PAT the runtime image build needs to clone this private repo
-  # (build/rebuild.sh reads exactly one file under it). Mirrors .drone.yml's
-  # bldeploy-pat volume, mounted read-only since the build only ever reads it.
-  - &pat-volume /var/bondlink/tmp/.github:/var/bondlink/tmp/.github:ro
 
 steps:
   - name: init-build
@@ -98,9 +94,9 @@ steps:
   - name: build-and-push
     image: *build-image
     pull: true
+    # build/rebuild.sh reads the clone PAT from Secrets Manager through the agent's instance role.
     volumes:
       - *docker-volume
-      - *pat-volume
     commands:
       # docker-cli-compose alone is the classic (non-BuildKit) builder, which
       # can't do the GIT_ASKPASS secrets:-mount build/rebuild.sh relies on to
