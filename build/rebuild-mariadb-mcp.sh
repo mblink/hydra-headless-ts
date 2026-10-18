@@ -45,13 +45,12 @@ for arg in "$@"; do
 done
 
 if [ -z "${GIT_TOKEN:-}" ]; then
-  PAT_SRC="${PAT_SRC:-/var/bondlink/tmp/.github/bldeploy.pat}"
-  if [ ! -r "$PAT_SRC" ]; then
-    echo "error: no PAT available -- set GIT_TOKEN, or provide a readable file at $PAT_SRC" >&2
-    ls -la "$(dirname "$PAT_SRC")" >&2 2>&1 || echo "error: $(dirname "$PAT_SRC") does not exist" >&2
+  GIT_TOKEN="$(aws secretsmanager get-secret-value --region us-east-1 --secret-id bondlink/bldeploy-github-pat \
+    --query SecretString --output text 2>/dev/null || true)"
+  if [ -z "$GIT_TOKEN" ]; then
+    echo "error: no PAT available -- set GIT_TOKEN, or use AWS credentials that can read bondlink/bldeploy-github-pat" >&2
     exit 1
   fi
-  GIT_TOKEN="$(cat "$PAT_SRC")"
 fi
 
 # Ephemeral: this script's whole reason to clone oddjob is to read one file

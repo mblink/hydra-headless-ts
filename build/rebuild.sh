@@ -10,8 +10,8 @@ set -eo pipefail
 #   rebuild.sh --ci     CI: build and push only, never touch a running container
 #
 # The image build clones this private repo, so it needs a GitHub PAT with read
-# access to mblink/hydra-headless-ts: either GIT_TOKEN in the environment, or a
-# readable file at $PAT_SRC (see below). REPO_BASE/ECR_REPO and login() all
+# access to mblink/hydra-headless-ts: either GIT_TOKEN in the environment, or
+# the bldeploy PAT from Secrets Manager (see below). REPO_BASE/ECR_REPO and login() all
 # come from build/shared.sh. COMPOSE_ARGS/COMPOSE_PROJECT (which compose
 # files, and which project, this host is actually running under) come from
 # scripts/compose-env.sh -- see that file's header. Without it, a bare
@@ -165,19 +165,17 @@ elif [ $FORCE -eq 1 ] && [ $IS_CI -eq 0 ]; then
   echo "warning: --force/SKIP_GIT_CHECKS set; skipping git state checks." >&2
 fi
 
-# The image build clones this private repo, so it needs a PAT. Locally that's
-# GIT_TOKEN in your environment; on a Drone agent it's the bldeploy PAT file the
-# host mounts at /var/bondlink/tmp/.github/bldeploy.pat (same source oddjob's
-# drone/build-salt.sh reads). Read from the file rather than plumbing it through
-# an env var when we can -- one less place it can be echoed.
+# The image build clones this private repo, so it needs a PAT: GIT_TOKEN if set,
+# otherwise the bldeploy PAT from Secrets Manager, read with whatever AWS
+# credentials are in scope (the CI agents' and prodops03's instance roles, or
+# your own profile).
 if [ -z "${GIT_TOKEN:-}" ]; then
-  PAT_SRC="${PAT_SRC:-/var/bondlink/tmp/.github/bldeploy.pat}"
-  if [ ! -r "$PAT_SRC" ]; then
-    echo "error: no PAT available -- set GIT_TOKEN, or provide a readable file at $PAT_SRC" >&2
-    ls -la "$(dirname "$PAT_SRC")" >&2 2>&1 || echo "error: $(dirname "$PAT_SRC") does not exist" >&2
+  GIT_TOKEN="$(aws secretsmanager get-secret-value --region us-east-1 --secret-id bondlink/bldeploy-github-pat \
+    --query SecretString --output text 2>/dev/null || true)"
+  if [ -z "$GIT_TOKEN" ]; then
+    echo "error: no PAT available -- set GIT_TOKEN, or use AWS credentials that can read bondlink/bldeploy-github-pat" >&2
     exit 1
   fi
-  GIT_TOKEN="$(cat "$PAT_SRC")"
 fi
 
 # GIT_ASKPASS script for the image build's clone, passed through
