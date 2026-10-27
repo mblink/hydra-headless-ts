@@ -201,7 +201,7 @@ if [ -n "$hydra_running" ]; then
   # this script had just stopped the one container keeping some of them alive.
   # Plain prune drops dangling (untagged) layers only, which is all this was
   # ever for -- reclaiming space from the previous build of this image. It also
-  # keeps the base images, so rebuilds stop re-pulling node:22-alpine every time.
+  # keeps the base images, so rebuilds stop re-pulling node:24-alpine every time.
   docker system prune -f
 fi
 
