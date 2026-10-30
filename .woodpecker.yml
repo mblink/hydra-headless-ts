@@ -99,7 +99,7 @@ steps:
       - *docker-volume
     commands:
       # docker-cli-compose alone is the classic (non-BuildKit) builder, which
-      # can't do the GIT_ASKPASS secrets:-mount build/rebuild.sh relies on to
+      # can't do the build secret mount build/rebuild.sh relies on to
       # keep the clone PAT out of `docker history` ("the classic builder
       # doesn't support secrets, set DOCKER_BUILDKIT=1 to use BuildKit").
       # docker-cli-buildx supplies that; compose detects and uses it

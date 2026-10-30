@@ -178,22 +178,13 @@ if [ -z "${GIT_TOKEN:-}" ]; then
   fi
 fi
 
-# GIT_ASKPASS script for the image build's clone, passed through
-# docker-compose.yml's `secrets:` block as a BuildKit secret so it is mounted
-# only for the RUN that declares it and never lands in a layer. Written to a
-# file rather than passed as a build-arg or argv -- argv is visible in `ps` and
-# in `docker inspect`, a build-arg in `docker history`.
-GIT_ASKPASS_FILE="$(mktemp)"
-trap 'rm -f "$GIT_ASKPASS_FILE"' EXIT
-cat > "$GIT_ASKPASS_FILE" <<EOF
-#!/usr/bin/env bash
-case "\$1" in
-  Username*) echo "x-access-token" ;;
-  *) echo "$GIT_TOKEN" ;;
-esac
-EOF
-chmod 700 "$GIT_ASKPASS_FILE"
-export GIT_ASKPASS_FILE
+# docker-compose.yml's `secrets:` block passes GIT_TOKEN from the environment to
+# the image build as a BuildKit secret, mounted only for the RUN that declares
+# it and never written to a layer. Not a build-arg (recorded in `docker
+# history`), and not a temp file: Compose builds through `buildx bake`, which
+# refuses to read a file outside the project directory without
+# `--allow=fs.read=...`.
+export GIT_TOKEN
 set -x
 if [ -n "$hydra_running" ]; then
   docker stop "$hydra_running"
