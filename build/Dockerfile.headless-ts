@@ -20,7 +20,7 @@
 # still ships an OpenSSL with a CRITICAL CVE and a Node too old for the npm that
 # fixes CVE-2026-59873. Matches the drone-hydra-headless-ts CI base, so tests
 # run on the same Node that serves.
-FROM node:22-alpine
+FROM node:24-alpine
 
 WORKDIR /src/app
 RUN apk add --no-cache vim git bash postgresql-client
