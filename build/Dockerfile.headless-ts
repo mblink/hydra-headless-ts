@@ -7,16 +7,16 @@
 # a checkout from before package-lock.json was tracked. Naming the commit in the
 # RUN changes its cache key on every commit. build/rebuild.sh passes the SHA.
 #
-# Auth is a GIT_ASKPASS script supplied as a BuildKit secret, not a build-arg.
+# Auth is the PAT supplied as a BuildKit secret, not a build-arg.
 # The previous `https://$GIT_TOKEN@github.com/...` form had two problems: no
 # `ARG GIT_TOKEN` was ever declared, so it expanded to the empty string and the
 # private clone could only ever fail; and had it been declared, a build-arg is
 # recorded verbatim in `docker history`, publishing the token to anyone who can
 # pull the image. A secret is mounted only for the RUN that declares it and is
-# never persisted in a layer. See build/rebuild.sh, which writes the script, and
+# never persisted in a layer. See build/rebuild.sh, which exports GIT_TOKEN, and
 # docker-compose.yml's `secrets:` block, which passes it through.
 #
-# node:22-alpine (floating) rather than the frozen node:22-alpine3.20: 3.20
+# node:24-alpine (floating) rather than a frozen node:*-alpine3.20: 3.20
 # still ships an OpenSSL with a CRITICAL CVE and a Node too old for the npm that
 # fixes CVE-2026-59873. Matches the drone-hydra-headless-ts CI base, so tests
 # run on the same Node that serves.
@@ -28,14 +28,16 @@ RUN apk add --no-cache vim git bash postgresql-client
 # After the apk layer, so only the steps from the fetch on change per commit
 ARG GIT_SHA
 
-# mode=0555: GIT_ASKPASS must be an executable git can invoke, not a data file.
-RUN --mount=type=secret,id=github_askpass,target=/run/secrets/askpass.sh,mode=0555 <<'CLONE'
+# The credential helper cats the token when git asks for it, so it never appears
+# in argv, and `-c` keeps the helper out of .git/config in the image.
+RUN --mount=type=secret,id=github_token <<'CLONE'
 set -e
 if [ -z "$GIT_SHA" ]; then echo "error: build with --build-arg GIT_SHA=<commit> (see build/rebuild.sh)" >&2; exit 1; fi
-export GIT_ASKPASS=/run/secrets/askpass.sh GIT_TERMINAL_PROMPT=0
+export GIT_TERMINAL_PROMPT=0
 git init -q .
 git remote add origin https://github.com/mblink/hydra-headless-ts.git
-git fetch -q --depth 1 origin "$GIT_SHA"
+git -c credential.helper='!f() { echo username=x-access-token; echo "password=$(cat /run/secrets/github_token)"; }; f' \
+  fetch -q --depth 1 origin "$GIT_SHA"
 git checkout -q FETCH_HEAD
 CLONE
 
