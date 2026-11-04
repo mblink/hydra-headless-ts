@@ -144,7 +144,7 @@ mistake doesn't cost another debugging session.
   Google OAuth client and only updating one of the two).
 
 - **A CLI/node command errors with `node: bad option: --env-file=...`.**
-  `--env-file` needs Node ≥20.6; the container image (`node:22-alpine`)
+  `--env-file` needs Node ≥20.6; the container image (`node:24-alpine`)
   supports it fine. This error means the command ran against a different,
   older Node — almost always the bare host's system Node rather than inside
   the container. Run CLI commands via `docker exec`/`docker compose exec`.
