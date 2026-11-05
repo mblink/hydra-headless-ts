@@ -20,7 +20,15 @@
 #     running.
 #
 # Auto-detect which of those this host is, rather than requiring a flag.
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
+# zsh leaves BASH_SOURCE empty; %x is its path of the file being sourced. eval keeps the
+# zsh-only syntax away from bash.
+if [ -n "${ZSH_VERSION:-}" ]; then
+  eval '_compose_env_src="${(%):-%x}"'
+else
+  _compose_env_src="${BASH_SOURCE[0]}"
+fi
+REPO_ROOT="$(cd "$(dirname "$_compose_env_src")/.." >/dev/null 2>&1 && pwd)"
+unset _compose_env_src
 
 if [ "$(uname)" = "Darwin" ]; then
   DOCKER_CMD="docker"
@@ -71,8 +79,14 @@ COMPOSE_ARGS=(-f "$BASE_COMPOSE" -f "$MCP_COMPOSE" -p "$COMPOSE_PROJECT")
 # contain spaces, so this is safe for display purposes.
 COMPOSE_ARGS_STR="${COMPOSE_ARGS[*]}"
 
+# Not `$DOCKER_CMD compose`: zsh doesn't word-split an unquoted variable, so it runs a
+# command literally named "sudo docker".
 compose() {
-  $DOCKER_CMD compose "${COMPOSE_ARGS[@]}" "$@"
+  if [ "$DOCKER_CMD" = "docker" ]; then
+    docker compose "${COMPOSE_ARGS[@]}" "$@"
+  else
+    sudo docker compose "${COMPOSE_ARGS[@]}" "$@"
+  fi
 }
 
 hydraComposeCmd() {
