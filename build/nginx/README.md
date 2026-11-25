@@ -73,6 +73,7 @@ sets its `Secure` session cookie and sign-in fails at the return from `/login`.
 | a redirect loses the port | T4 missed — `$http_host`, not `$host` |
 | `open() "/etc/nginx/cors_headers" failed` | the bind mount path was wrong, so Docker created a **directory** there |
 | `/db-tools` returns 502 | mariadb-mcp is down — it exits at startup when it cannot reach the database (check `DB_HOST`/`DB_PASSWORD` in mariadb-mcp.env). T9 keeps it from taking nginx with it |
+| deployed only: MCP connectors fail with 503 "Invalid content from server" right after a successful `/oauth2/token`; the app logs `authz denied: no bearer token` with `Empty UA` every few seconds | a load balancer's health checks aren't matching the `/_authz` bypass (T11), so HAProxy marks the `/db-tools` backend DOWN. Usually a new server joined the LB group without the hydra-headless-ts Salt state being re-run, so its IP is missing from the `$mcp_healthcheck_source_ip` geo. Re-run the state |
 
 ## Prerequisites
 
